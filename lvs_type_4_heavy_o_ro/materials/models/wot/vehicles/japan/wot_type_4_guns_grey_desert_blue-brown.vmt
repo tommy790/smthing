@@ -1,0 +1,16 @@
+"VertexlitGeneric"
+{
+	"$basetexture" "models\wot\vehicles\japan\Type_4\Type_4_guns_grey_d"
+	"$bumpmap" "models\wot\vehicles\japan\Type_4\Type_4_guns_n"
+	"$color2" "[0.8 0.8 0.8]"				
+
+	"$phong" "1"						
+	"$phongboost"	"3" 		
+	"$phongexponent" "15"	
+	"$phongfresnelranges"	"[0.3 1 4]" 
+                "$lightwarptexture" "models\wot\common\lightwarp"	
+
+                "$detail" "models/wot/vehicles/japan/camouflage/Cjapan_desert_blue-brown_grey"
+                "$detailblendmode" 4
+                "$detailscale" 2	
+}

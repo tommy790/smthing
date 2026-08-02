@@ -1,0 +1,14 @@
+"VertexlitGeneric"
+{
+	"$basetexture" "models\wot\vehicles\japan\tracks\Type_4_track_segment_d"
+	"$bumpmap" "models\wot\vehicles\japan\tracks\Type_4_track_segment_n"
+	"$color2" "[0.8 0.8 0.8]"	
+	"$alphatest" "1"	
+	"$nocull" "1"			
+
+	"$phong" "1"						
+	"$phongboost"	"3" 		
+	"$phongexponent" "15"	
+	"$phongfresnelranges"	"[0.3 1 4]" 
+                "$lightwarptexture" "models\wot\common\lightwarp"	
+}
