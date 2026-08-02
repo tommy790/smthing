@@ -1,0 +1,263 @@
+--[[---------------------------------------------------------------------------
+    LVS → Gredwitch FX : muzzle flashes (client-side)
+
+    Every muzzle-mounted particle spawned here uses PATTACH_POINT_FOLLOW on the
+    resolved muzzle attachment, so the flash stays glued to the barrel while
+    the weapon traverses, elevates, recoils, animates or moves with the vehicle.
+
+    Resolution order (see muzzle.lua):
+      1. LVS EffectData attachment id (validated)
+      2. Authoritative LVS muzzle attachment name (TurretBallisticsMuzzleAttachment)
+      3. Named muzzle/barrel candidates nearest to the muzzle position
+         (correct barrel on multi-barrel / alternating-barrel weapons)
+      4. Strict nearest attachment (models without named muzzles)
+      5. World-position fallback — strictly last, always logged with the reason
+
+    The muzzle world position is used to FIND the attachment; it is never the
+    preferred way to render the final effect.
+
+    The PCF choice is driven by the most recent matching tracer shot (firing
+    order), falling back to a per-effect default when the tracer has not been
+    received yet — the flash itself never depends on tracer timing, so it can
+    never be delayed or dropped because of pairing.
+-----------------------------------------------------------------------------]]
+
+if not CLIENT then return end
+
+local cfg = LVS_GRED_FX.Config
+local Debug = LVS_GRED_FX.Debug
+
+LVS_GRED_FX_MUZZLEFLASH = LVS_GRED_FX_MUZZLEFLASH or {}
+
+function LVS_GRED_FX.GetMuzzleRollFix(pcf, ent)
+    if not isstring(pcf) then return nil end
+
+    if IsValid(ent) then
+        local model = ent:GetModel()
+        if isstring(model) then
+            local byModel = cfg.MuzzleRollFixByModel[model]
+            if byModel and byModel[pcf] ~= nil then return byModel[pcf] end
+        end
+
+        local class = ent:GetClass()
+        if isstring(class) then
+            local byClass = cfg.MuzzleRollFixByClass[class]
+            if byClass and byClass[pcf] ~= nil then return byClass[pcf] end
+        end
+    end
+
+    return nil
+end
+
+-- Spawn one muzzle-mounted flash particle. Returns true on success.
+local function spawnFlash(pcf, ent, muzzlePos, ang, att, life)
+    if not cfg.Enabled() or not isstring(pcf) then return false end
+    if not LVS_GRED_FX.Preload(pcf) then return false end
+
+    local roll = LVS_GRED_FX.GetMuzzleRollFix(pcf, ent)
+
+    if att and att > 0 and LVS_GRED_FX.ValidAttachment(ent, att) then
+        local ok = LVS_GRED_FX.SpawnAttached(pcf, ent, att, {
+            life = life,
+            clear = true,
+            ang = ang,
+            roll = roll,
+        })
+        if ok then
+            if cfg.DebugEnabled() then
+                Debug("muzzle flash:", pcf, "attached att:", att,
+                    "name:", LVS_GRED_FX.AttachmentName(ent, att),
+                    "POINT_FOLLOW:", ok == true and "yes" or "yes(handle)")
+            end
+            return true
+        end
+    end
+
+    -- No usable attachment: world-position fallback (documented last resort).
+    if cfg.DebugEnabled() then
+        Debug("muzzle flash world fallback:", pcf,
+            "pos:", tostring(muzzlePos),
+            "reason: no valid attachment",
+            "att:", tostring(att))
+    end
+
+    return LVS_GRED_FX.SpawnWorld(pcf, muzzlePos, ang, life, true) ~= nil
+end
+
+-- Spawn a full artillery muzzle (flash + sparks + glow layers), all attached.
+local function spawnArtillery(ent, muzzlePos, ang, att, life)
+    local ok = false
+
+    ok = spawnFlash(cfg.DefaultMuzzleByEffect.lvs_haubitze_muzzle or "gred_arti_muzzle_blast_alt", ent, muzzlePos, ang, att, life) or ok
+
+    for i = 1, #cfg.ArtilleryExtraFlash do
+        local pcf = cfg.ArtilleryExtraFlash[i]
+        if pcf and pcf ~= "" then
+            ok = spawnFlash(pcf, ent, muzzlePos, ang, att, life) or ok
+        end
+    end
+
+    return ok
+end
+
+-- Spawn a generic multi-layer flash for unknown lvs_*muzzle* effect names.
+local function spawnGenericMuzzle(ent, muzzlePos, ang, att)
+    local ok = false
+
+    for i = 1, #cfg.GenericMuzzleFlash do
+        local pcf = cfg.GenericMuzzleFlash[i]
+        if pcf and pcf ~= "" then
+            ok = spawnFlash(pcf, ent, muzzlePos, ang, att, cfg.FlashLife) or ok
+        end
+    end
+
+    return ok
+end
+
+--[[---------------------------------------------------------------------------
+    Spawn — main entry from the bridge.
+
+    effectName: the LVS muzzle effect name (lvs_muzzle, lvs_muzzle_colorable,
+                lvs_pulserifle_muzzle, lvs_haubitze_muzzle, ...)
+-----------------------------------------------------------------------------]]
+function LVS_GRED_FX_MUZZLEFLASH.Spawn(effectName, self, data)
+    if not cfg.Enabled() then return false end
+
+    local ent = data.GetEntity and data:GetEntity() or nil
+    local muzzlePos = data.GetOrigin and data:GetOrigin() or nil
+    local normal = data.GetNormal and data:GetNormal() or nil
+    local dataAtt = data.GetAttachment and data:GetAttachment() or 0
+
+    if not isvector(muzzlePos) then
+        return false
+    end
+
+    local ang = isvector(normal) and normal:Angle() or nil
+
+    if not IsValid(ent) then
+        -- Without a valid entity there is nothing to attach to. Fall back to
+        -- a plain world flash at the muzzle position so the shot still reads.
+        Debug("muzzle effect without entity; world fallback:", effectName)
+        return LVS_GRED_FX.SpawnWorldOneShot(cfg.DefaultMuzzleByEffect[effectName] or cfg.DefaultMuzzle, muzzlePos, ang)
+    end
+
+    if cfg.DebugEnabled() then
+        Debug("muzzle effect:", effectName, "ent:", ent:GetClass(),
+            "muzzle pos:", tostring(muzzlePos))
+    end
+
+    -- Resolve the correct muzzle attachment (never "attachment 1" guessing).
+    local att, info = LVS_GRED_FX.ResolveMuzzleAttachment(ent, muzzlePos, dataAtt)
+
+    if cfg.DebugEnabled() then
+        Debug("muzzle attachment:", "id:", att, "method:", info and info.method,
+            "dist:", info and info.dist and string.format("%.1f", info.dist) or "n/a",
+            "name:", info and info.name or "?")
+    end
+
+    -- Choose the flash PCF from the most recent matching shot (firing order);
+    -- fall back to the per-effect default when no tracer has been seen yet.
+    local rootEnt = LVS_GRED_FX.VehicleRoot(ent)
+    local rec = LVS_GRED_FX_TRACER.RecentShot(rootEnt, muzzlePos)
+    local map = rec and rec.map or nil
+
+    local pcf = (map and map.muzzle)
+        or cfg.DefaultMuzzleByEffect[effectName]
+        or cfg.DefaultMuzzle
+
+    local isArtillery = effectName == "lvs_haubitze_muzzle"
+        or (map and (map.caliber == "40mm" or map.caliber == "50mm"))
+        or pcf == "gred_arti_muzzle_blast_alt"
+
+    local ok
+
+    if isArtillery then
+        ok = spawnArtillery(ent, muzzlePos, ang, att, cfg.ArtilleryLife)
+    else
+        ok = spawnFlash(pcf, ent, muzzlePos, ang, att, cfg.FlashLife)
+    end
+
+    -- Barrel smoke: separate system, resolved with its own attachment lookup,
+    -- so a smoke bug can never take the muzzle flash down with it.
+    if cfg.SmokeEnabled() and map and map.smoke then
+        LVS_GRED_FX_BARRELSMOKE.Spawn(ent, muzzlePos, att, map.smoke)
+    end
+
+    -- The tracer record sometimes arrives a frame after the muzzle effect
+    -- (network ordering). The attachment is already resolved and used above;
+    -- this deferred pass only upgrades the PCF (and smoke) when a matching
+    -- tracer shot now exists. It runs at most once.
+    if not rec then
+        timer.Simple(0, function()
+            if not cfg.Enabled() then return end
+            if not IsValid(ent) then return end
+
+            local recNow = LVS_GRED_FX_TRACER.RecentShot(rootEnt, muzzlePos)
+            local mapNow = recNow and recNow.map
+            if not mapNow then return end
+
+            local pcfNow = mapNow.muzzle
+            if not pcfNow or pcfNow == pcf then return end
+
+            local artiNow = mapNow.caliber == "40mm" or mapNow.caliber == "50mm"
+                or pcfNow == "gred_arti_muzzle_blast_alt"
+
+            if artiNow then
+                spawnArtillery(ent, muzzlePos, ang, att, cfg.ArtilleryLife)
+            else
+                spawnFlash(pcfNow, ent, muzzlePos, ang, att, cfg.FlashLife)
+            end
+
+            if cfg.SmokeEnabled() and mapNow.smoke then
+                LVS_GRED_FX_BARRELSMOKE.Spawn(ent, muzzlePos, att, mapNow.smoke)
+            end
+        end)
+    end
+
+    -- Haubitze: also draw a short ballistic path beam in world space (this is
+    -- a tracer-like visualization, not a muzzle-mounted particle).
+    if effectName == "lvs_haubitze_muzzle" and isvector(normal) then
+        LVS_GRED_FX_MUZZLEFLASH.SpawnHaubitzeBeam(muzzlePos, normal)
+    end
+
+    return ok
+end
+
+-- World-space beam used by the haubitze (ballistic path visualization).
+function LVS_GRED_FX_MUZZLEFLASH.SpawnHaubitzeBeam(muzzlePos, dir)
+    local pcf = "gred_tracers_white_40mm"
+    if not LVS_GRED_FX.Preload(pcf) then return end
+
+    local tr = util.TraceLine({
+        start = muzzlePos,
+        endpos = muzzlePos + dir * 20000,
+        mask = MASK_SHOT + MASK_WATER,
+    })
+
+    local endpos = tr.HitPos or (muzzlePos + dir * 20000)
+
+    local psys = LVS_GRED_FX.SpawnWorld(pcf, muzzlePos, dir:Angle(), 0.5, true)
+    if psys and IsValid(psys) then
+        pcall(function() psys:SetControlPoint(1, endpos) end)
+    end
+end
+
+-- Exposed for the bridge's generic "unknown muzzle effect" branch.
+function LVS_GRED_FX_MUZZLEFLASH.SpawnGeneric(effectName, self, data)
+    local ent = data.GetEntity and data:GetEntity() or nil
+    local muzzlePos = data.GetOrigin and data:GetOrigin() or nil
+    local normal = data.GetNormal and data:GetNormal() or nil
+    local dataAtt = data.GetAttachment and data:GetAttachment() or 0
+
+    if not isvector(muzzlePos) or not IsValid(ent) then return false end
+
+    local ang = isvector(normal) and normal:Angle() or nil
+    local att, info = LVS_GRED_FX.ResolveMuzzleAttachment(ent, muzzlePos, dataAtt)
+
+    if cfg.DebugEnabled() then
+        Debug("generic muzzle effect:", effectName, "att:", att,
+            "method:", info and info.method, "dist:", info and info.dist)
+    end
+
+    return spawnGenericMuzzle(ent, muzzlePos, ang, att)
+end
