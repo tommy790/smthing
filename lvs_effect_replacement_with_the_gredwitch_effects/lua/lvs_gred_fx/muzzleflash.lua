@@ -178,9 +178,12 @@ function LVS_GRED_FX_MUZZLEFLASH.Spawn(effectName, self, data)
     end
 
     -- Barrel smoke: separate system, resolved with its own attachment lookup,
-    -- so a smoke bug can never take the muzzle flash down with it.
-    if cfg.SmokeEnabled() and map and map.smoke then
-        LVS_GRED_FX_BARRELSMOKE.Spawn(ent, muzzlePos, att, map.smoke)
+    -- so a smoke bug can never take the muzzle flash down with it. Uses the
+    -- tracer-paired PCF, or the per-effect default (e.g. haubitze) when no
+    -- tracer record has paired yet.
+    local smokePcf = (map and map.smoke) or cfg.DefaultSmokeByEffect[effectName]
+    if cfg.SmokeEnabled() and smokePcf then
+        LVS_GRED_FX_BARRELSMOKE.Spawn(ent, muzzlePos, att, smokePcf)
     end
 
     -- The tracer record sometimes arrives a frame after the muzzle effect
@@ -208,8 +211,9 @@ function LVS_GRED_FX_MUZZLEFLASH.Spawn(effectName, self, data)
                 spawnFlash(pcfNow, ent, muzzlePos, ang, att, cfg.FlashLife)
             end
 
-            if cfg.SmokeEnabled() and mapNow.smoke then
-                LVS_GRED_FX_BARRELSMOKE.Spawn(ent, muzzlePos, att, mapNow.smoke)
+            local smokePcfNow = mapNow.smoke or cfg.DefaultSmokeByEffect[effectName]
+            if cfg.SmokeEnabled() and smokePcfNow then
+                LVS_GRED_FX_BARRELSMOKE.Spawn(ent, muzzlePos, att, smokePcfNow)
             end
         end)
     end

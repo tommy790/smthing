@@ -74,8 +74,8 @@ C.Tracers = {
     -- Autocannon / cannon / rockets
     lvs_tracer_autocannon       = { color = "white",  caliber = "30mm", muzzle = "muzzleflash_bar_3p",        smoke = "weapon_muzzle_smoke" },
     lvs_tracer_missile          = { color = "yellow", caliber = "30mm", muzzle = "muzzleflash_bar_3p" },
-    lvs_tracer_cannon           = { color = "white",  caliber = "40mm", muzzle = "gred_arti_muzzle_blast_alt", smoke = "gred_arti_muzzle_smoke" },
-    lvs_tracer_proton           = { color = "white",  caliber = "40mm", muzzle = "gred_arti_muzzle_blast_alt", smoke = "gred_arti_muzzle_smoke" },
+    lvs_tracer_cannon           = { color = "white",  caliber = "40mm", muzzle = "gred_arti_muzzle_blast_alt", smoke = "vj_smoke_white_narrow" },
+    lvs_tracer_proton           = { color = "white",  caliber = "40mm", muzzle = "gred_arti_muzzle_blast_alt", smoke = "vj_smoke_white_narrow" },
 
     -- Lasers (gred has no blue beam; blue lasers read best as white tracers)
     lvs_laser_blue              = { color = "white",  caliber = "30mm", muzzle = "muzzleflash_bar_3p" },
@@ -90,6 +90,12 @@ C.Tracers = {
 
 -- Muzzle flash default PCF used when no tracer record is available yet.
 C.DefaultMuzzle = "muzzleflash_bar_3p"
+
+-- Default smoke PCF per muzzle effect, used when no tracer record has paired
+-- yet (matches the old addon: haubitze used vj_smoke_white_medium).
+C.DefaultSmokeByEffect = {
+    lvs_haubitze_muzzle = "vj_smoke_white_medium",
+}
 
 C.DefaultMuzzleByEffect = {
     lvs_muzzle_colorable = "muzzleflash_bar_3p",
@@ -188,7 +194,7 @@ C.WaterByEffect = {
 
 C.ScrapePcf       = "muzzleflash_sparks_variant_6"
 C.DefenceSmokePcf = "m203_smokegrenade"
-C.ExhaustSmokePcf = "gred_20mm_smoke"
+C.ExhaustSmokePcf = "vj_smoke_white_narrow"
 C.StompDustPcf    = "doi_ceilingDust_large"
 C.RotorExplosionPcf = "high_explosive_air_2"
 
