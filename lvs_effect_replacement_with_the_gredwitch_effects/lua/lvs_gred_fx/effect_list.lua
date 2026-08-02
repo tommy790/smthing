@@ -47,7 +47,6 @@ return {
 
     -- Smoke / exhaust
     "lvs_defence_smoke",
-    "lvs_truck_exhaust",
 
     -- Physics (scrape, water, etc.)
     "lvs_hover_water",

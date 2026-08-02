@@ -334,13 +334,6 @@ local function dispatchOneShot(name, self, data)
         return true
     end
 
-    if name == "lvs_truck_exhaust" then
-        if ThrottleAt(pos, "exhaust", 1.2) then
-            LVS_GRED_FX.SpawnWorld(cfg.ExhaustSmokePcf, pos, ang or angle_zero, 1.2, false)
-        end
-        return true
-    end
-
     if name == "lvs_walker_stomp" then
         LVS_GRED_FX.SpawnWorld(cfg.StompDustPcf, pos, angle_zero, 1.2, false)
         LVS_GRED_FX.SpawnWorld("ins_rpg_explosion", pos + Vector(0, 0, 8), angle_zero, 1.0, false)

@@ -194,7 +194,6 @@ C.WaterByEffect = {
 
 C.ScrapePcf       = "muzzleflash_sparks_variant_6"
 C.DefenceSmokePcf = "m203_smokegrenade"
-C.ExhaustSmokePcf = "vj_smoke_white_narrow"
 C.StompDustPcf    = "doi_ceilingDust_large"
 C.RotorExplosionPcf = "high_explosive_air_2"
 
