@@ -306,11 +306,12 @@ local function dispatchOneShot(name, self, data)
                 -- Large-calibre AP (40mm+): dedicated AP spark (ParticleEffect).
                 LVS_GRED_FX.SpawnWorldOneShot(apPcf, apPos + apNrm * 2, apNrm:Angle())
             else
-                -- Autocannon / small-calibre AP: use the surface-aware impact
-                -- with the SHOT's real caliber (30mm -> 30cal_impact via
-                -- gred_particle_impact), which is the actual gred autocannon
-                -- impact — visually distinct from the gred_20mm HE explosion.
-                LVS_GRED_FX.GredImpact(apPos, apNrm, cal, LVS_GRED_FX.IsInWater(apPos))
+                -- Autocannon / small-calibre AP: SMALL surface impact, clearly
+                -- smaller than the HE explosion. The 12mm surface-aware profile
+                -- (ins_impact_* / doi_impact_*) is subtle; routing autocannon
+                -- AP through 30cal_impact made it look like a BIGGER explosion
+                -- than the gred_20mm HE impact (wrong).
+                LVS_GRED_FX.GredImpact(apPos, apNrm, cfg.APImpactAutocannonCaliber or "12mm", LVS_GRED_FX.IsInWater(apPos))
             end
         end)
 
