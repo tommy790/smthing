@@ -155,8 +155,15 @@ function LVS_GRED_FX_MUZZLEFLASH.Spawn(effectName, self, data)
             "muzzle pos:", tostring(muzzlePos))
     end
 
+    -- The muzzle attachment lives on the VEHICLE ROOT, not necessarily on
+    -- the effect's entity: LVS fires lvs_muzzle on the gunner pod
+    -- (lvs_base_gunner), whose own model has no muzzle attachments — the
+    -- barrel attachment is on the parent vehicle (e.g. lvs_w50_zu_w).
+    -- Resolve on the root so the flash/smoke attach to the real barrel.
+    local rootEnt = LVS_GRED_FX.VehicleRoot(ent)
+
     -- Resolve the correct muzzle attachment (never "attachment 1" guessing).
-    local att, info = LVS_GRED_FX.ResolveMuzzleAttachment(ent, muzzlePos, dataAtt)
+    local att, info = LVS_GRED_FX.ResolveMuzzleAttachment(rootEnt, muzzlePos, dataAtt)
 
     if cfg.DebugEnabled() then
         Debug("muzzle attachment:", "id:", att, "method:", info and info.method,
@@ -166,7 +173,6 @@ function LVS_GRED_FX_MUZZLEFLASH.Spawn(effectName, self, data)
 
     -- Choose the flash PCF from the most recent matching shot (firing order);
     -- fall back to the per-effect default when no tracer has been seen yet.
-    local rootEnt = LVS_GRED_FX.VehicleRoot(ent)
     local rec = LVS_GRED_FX_TRACER.RecentShot(rootEnt, muzzlePos)
     local map = rec and rec.map or nil
 
@@ -180,10 +186,12 @@ function LVS_GRED_FX_MUZZLEFLASH.Spawn(effectName, self, data)
 
     local ok
 
+    -- Spawn on rootEnt (the entity that owns the resolved attachment) so the
+    -- PATTACH_POINT_FOLLOW id matches the entity.
     if isArtillery then
-        ok = spawnArtillery(ent, muzzlePos, ang, att, cfg.ArtilleryLife)
+        ok = spawnArtillery(rootEnt, muzzlePos, ang, att, cfg.ArtilleryLife)
     else
-        ok = spawnFlash(pcf, ent, muzzlePos, ang, att, cfg.FlashLife)
+        ok = spawnFlash(pcf, rootEnt, muzzlePos, ang, att, cfg.FlashLife)
     end
 
     -- Barrel smoke: separate system, resolved with its own attachment lookup,
@@ -200,7 +208,7 @@ function LVS_GRED_FX_MUZZLEFLASH.Spawn(effectName, self, data)
         for i = 1, #smokeList do
             local pcf = smokeList[i]
             if pcf and pcf ~= "" then
-                LVS_GRED_FX_BARRELSMOKE.Spawn(ent, muzzlePos, att, pcf)
+                LVS_GRED_FX_BARRELSMOKE.Spawn(rootEnt, muzzlePos, att, pcf)
             end
         end
     end
@@ -212,7 +220,7 @@ function LVS_GRED_FX_MUZZLEFLASH.Spawn(effectName, self, data)
     if not rec then
         timer.Simple(0, function()
             if not cfg.Enabled() then return end
-            if not IsValid(ent) then return end
+            if not IsValid(rootEnt) then return end
 
             local recNow = LVS_GRED_FX_TRACER.RecentShot(rootEnt, muzzlePos)
             local mapNow = recNow and recNow.map
@@ -225,9 +233,9 @@ function LVS_GRED_FX_MUZZLEFLASH.Spawn(effectName, self, data)
                 or pcfNow == "gred_arti_muzzle_blast_alt"
 
             if artiNow then
-                spawnArtillery(ent, muzzlePos, ang, att, cfg.ArtilleryLife)
+                spawnArtillery(rootEnt, muzzlePos, ang, att, cfg.ArtilleryLife)
             else
-                spawnFlash(pcfNow, ent, muzzlePos, ang, att, cfg.FlashLife)
+                spawnFlash(pcfNow, rootEnt, muzzlePos, ang, att, cfg.FlashLife)
             end
 
             local smokeListNow = mapNow.smoke or cfg.DefaultSmokeByEffect[effectName]
@@ -238,7 +246,7 @@ function LVS_GRED_FX_MUZZLEFLASH.Spawn(effectName, self, data)
                 for i = 1, #smokeListNow do
                     local pcf = smokeListNow[i]
                     if pcf and pcf ~= "" then
-                        LVS_GRED_FX_BARRELSMOKE.Spawn(ent, muzzlePos, att, pcf)
+                        LVS_GRED_FX_BARRELSMOKE.Spawn(rootEnt, muzzlePos, att, pcf)
                     end
                 end
             end
