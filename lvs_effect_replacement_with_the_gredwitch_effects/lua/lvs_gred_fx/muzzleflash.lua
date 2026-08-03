@@ -55,19 +55,19 @@ local function spawnFlash(pcf, ent, muzzlePos, ang, att, life)
     if not LVS_GRED_FX.Preload(pcf) then return false end
 
     -- The gred artillery muzzle blasts are ALWAYS spawned at the muzzle world
-    -- position, oriented by the LVS bullet direction. Some LVS models expose
-    -- muzzle attachments that are mis-rotated for these large directional
-    -- effects, which made the blast spray in the wrong direction when
-    -- attached. The world position + bullet direction from LVS are always
-    -- correct. Only these two PCFs are affected; every other muzzle-mounted
-    -- particle stays PATTACH_POINT_FOLLOW.
+    -- position as a plain ParticleEffect one-shot, oriented by the LVS bullet
+    -- direction — exactly how the original addon did it. Some LVS models
+    -- expose muzzle attachments that are mis-rotated for these large
+    -- directional effects, which made the blast spray in the wrong direction
+    -- when attached. Only these two PCFs are affected; every other
+    -- muzzle-mounted particle stays PATTACH_POINT_FOLLOW.
     if pcf == "gred_arti_muzzle_blast_alt" or pcf == "gred_arti_muzzle_blast" then
         if cfg.DebugEnabled() then
             Debug("muzzle flash world spawn (rotation-safe):", pcf,
                 "pos:", tostring(muzzlePos),
                 "attachment available:", tostring(att))
         end
-        return LVS_GRED_FX.SpawnWorld(pcf, muzzlePos, ang, life, true) ~= nil
+        return LVS_GRED_FX.SpawnWorldOneShot(pcf, muzzlePos, ang)
     end
 
     local roll = LVS_GRED_FX.GetMuzzleRollFix(pcf, ent)
@@ -100,20 +100,13 @@ local function spawnFlash(pcf, ent, muzzlePos, ang, att, life)
     return LVS_GRED_FX.SpawnWorld(pcf, muzzlePos, ang, life, true) ~= nil
 end
 
--- Spawn a full artillery muzzle (flash + sparks + glow layers), all attached.
+-- Spawn the full artillery muzzle flash: a single gred artillery blast
+-- (world ParticleEffect one-shot) + barrel smoke handled separately by the
+-- caller. The original addon did NOT layer extra spark/glow effects on top of
+-- the gred artillery blast — the gred_arti_muzzle_sparks layer made the
+-- muzzle read as "just a spark effect" instead of the complete flash.
 local function spawnArtillery(ent, muzzlePos, ang, att, life)
-    local ok = false
-
-    ok = spawnFlash(cfg.DefaultMuzzleByEffect.lvs_haubitze_muzzle or "gred_arti_muzzle_blast_alt", ent, muzzlePos, ang, att, life) or ok
-
-    for i = 1, #cfg.ArtilleryExtraFlash do
-        local pcf = cfg.ArtilleryExtraFlash[i]
-        if pcf and pcf ~= "" then
-            ok = spawnFlash(pcf, ent, muzzlePos, ang, att, life) or ok
-        end
-    end
-
-    return ok
+    return spawnFlash(cfg.DefaultMuzzleByEffect.lvs_haubitze_muzzle or "gred_arti_muzzle_blast_alt", ent, muzzlePos, ang, att, life)
 end
 
 -- Spawn a generic multi-layer flash for unknown lvs_*muzzle* effect names.

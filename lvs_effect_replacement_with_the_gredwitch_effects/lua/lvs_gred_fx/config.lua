@@ -103,12 +103,6 @@ C.DefaultMuzzleByEffect = {
     lvs_haubitze_muzzle   = "gred_arti_muzzle_blast_alt",
 }
 
--- Extra layers for big artillery muzzles (haubitze / unknown heavy muzzle effects).
-C.ArtilleryExtraFlash = {
-    "gred_arti_muzzle_sparks",
-    "muzzleflash_1p_glow",
-}
-
 -- Generic muzzle effect fallback layers (unknown lvs_*muzzle* effect names).
 C.GenericMuzzleFlash = {
     "muzzleflash_sparks_variant_6",
