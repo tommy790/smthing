@@ -224,7 +224,10 @@ function LVS_GRED_FX_TRACER.Init(name, self, data)
     -- Render via gred's OWN gred_particle_tracer effect (util.Effect), the
     -- exact mechanism gred's own tanks use — this renders wherever gred's
     -- tracers render, and is the same effect class we know works in-game.
-    if not LVS_GRED_FX_TracerFire(self, srcPos) then
+    local bulletPos = bullet and bullet.GetPos and bullet:GetPos() or nil
+    local initEnd = isvector(bulletPos) and bulletPos or (srcPos + dir * 1200)
+
+    if not LVS_GRED_FX_TracerFire(self, srcPos, initEnd) then
         -- Effect not available; the override wrapper falls back to the
         -- original LVS tracer (single tracer either way).
         return false
