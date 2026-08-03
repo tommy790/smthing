@@ -186,16 +186,20 @@ function LVS_GRED_FX.ResolveMuzzleAttachment(ent, muzzlePos, effectDataAtt)
 
     local cache = GetCache(ent)
 
-    -- 1) EffectData attachment id (authoritative when LVS provides one).
+    -- 1) EffectData attachment id. LVS sometimes provides a muzzle attachment
+    --    id, but it can be a stale/base-model id (e.g. lvs_2s38 sends id 1 —
+    --    39 units away, empty name — which is a hull/root attachment, not the
+    --    barrel). Validate it like the other paths: real name AND close to
+    --    the muzzle position.
     if effectDataAtt and effectDataAtt > 0 then
         local att = LVS_GRED_FX.GetAttachmentData(ent, effectDataAtt)
-        if att then
+        if att and att.Name and att.Name ~= "" then
             local dist = att.Pos:DistToSqr(muzzlePos)
             if dist <= MAX_EFFECTDATA_DIST * MAX_EFFECTDATA_DIST then
                 return effectDataAtt, {
                     method = "effectdata",
                     dist = math.sqrt(dist),
-                    name = att.Name or "",
+                    name = att.Name,
                 }
             end
         end
