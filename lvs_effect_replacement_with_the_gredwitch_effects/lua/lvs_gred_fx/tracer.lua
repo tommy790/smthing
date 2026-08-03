@@ -188,7 +188,10 @@ function LVS_GRED_FX_TRACER.Init(name, self, data)
     end
 
     local ok, psys = pcall(CreateParticleSystem, game.GetWorld(), pcf, PATTACH_WORLDORIGIN, 0, srcPos)
-    if ok and IsValid(psys) then
+
+    -- The particle handle is not an entity; validate it directly (see
+    -- particles.lua SpawnWorld for details).
+    if ok and psys ~= nil and (not psys.IsValid or psys:IsValid()) then
         -- Initial beam: a short stub in the firing direction; Think() extends
         -- it to the live bullet position every frame.
         pcall(function() psys:SetControlPoint(1, srcPos + dir * 1200) end)
@@ -207,7 +210,7 @@ end
 
 function LVS_GRED_FX_TRACER.Think(self)
     local psys = self._psys
-    if not psys or not IsValid(psys) then return false end
+    if not psys or (psys.IsValid and not psys:IsValid()) then return false end
 
     if CurTime() > (self._die or 0) then
         LVS_GRED_FX_TRACER.Stop(self)
@@ -229,7 +232,7 @@ end
 
 function LVS_GRED_FX_TRACER.Stop(self)
     if not self then return end
-    if self._psys and IsValid(self._psys) then
+    if self._psys and (not self._psys.IsValid or self._psys:IsValid()) then
         pcall(function() self._psys:StopEmission(false, true) end)
     end
     self._psys = nil

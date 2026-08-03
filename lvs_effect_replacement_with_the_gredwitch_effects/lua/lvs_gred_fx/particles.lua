@@ -99,7 +99,9 @@ function LVS_GRED_FX.SpawnAttached(name, ent, attID, opts)
 
     local ok, psys = pcall(CreateParticleSystem, ent, name, PPF, attID, vector_origin)
 
-    if ok and IsValid(psys) then
+    -- The particle system handle is not an entity; validate it directly (see
+    -- SpawnWorld for details).
+    if ok and psys ~= nil and (not psys.IsValid or psys:IsValid()) then
         if opts.roll and isangle(opts.ang) then
             local fixed = Angle(opts.ang.p, opts.ang.y, opts.ang.r)
             fixed:RotateAroundAxis(fixed:Forward(), opts.roll)
@@ -156,8 +158,16 @@ function LVS_GRED_FX.SpawnWorld(name, pos, ang, life, clear)
 
     local ok, psys = pcall(CreateParticleSystem, host, name, PWO, 0, pos)
 
-    if not ok or not IsValid(psys) then
+    -- IMPORTANT: the particle system handle is NOT an entity — the global
+    -- IsValid() (which checks IsEntity) returns false for it. Validate the
+    -- handle directly, and only consult the psys:IsValid() method when it
+    -- exists (gred's own effects do exactly this).
+    if not ok or psys == nil then
         DebugOnce("worldspawnfail:" .. name, "world particle create failed:", name)
+        return nil
+    end
+    if psys.IsValid and not psys:IsValid() then
+        DebugOnce("worldspawnfail:" .. name, "world particle system invalid:", name)
         return nil
     end
 
