@@ -129,7 +129,11 @@ function LVS_GRED_FX_SV.SendTracer(data)
         net.WriteUInt(calID, 3)
         net.WriteUInt(colID, 3)
         net.WriteVector(endpos)
-    net.Broadcast()
+
+    -- Only send to clients who can actually see the shot (same as LVS's own
+    -- bullet networking) — net.Broadcast would push every tracer to every
+    -- player, wasting bandwidth with many vehicles firing in multiplayer.
+    net.SendPVS(pos)
 end
 
 local function TryOverrideFireBullet()

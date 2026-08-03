@@ -62,14 +62,24 @@ function LVS_GRED_FX_BARRELSMOKE.Spawn(ent, muzzlePos, att, pcf)
     if not isstring(pcf) or pcf == "" then return end
     if not LVS_GRED_FX.Preload(pcf) then return end
 
-    -- Replacing the SAME smoke type: stop the old one from emitting and let
-    -- its existing particles fade naturally (StopEmission, clear=false) — do
-    -- NOT delete it instantly. Different types coexist.
     local byPcf = ACTIVE[ent]
     if not byPcf then
         byPcf = {}
         ACTIVE[ent] = byPcf
     end
+
+    -- RATE LIMIT: rapid fire (autocannons/MGs fire every 0.05-0.15s) would
+    -- spawn a new smoke system per shot, stacking many overlapping systems
+    -- before the previous ones fade. Only spawn if this smoke type was not
+    -- just spawned for this entity within the throttle window.
+    local lastSpawn = byPcf[pcf] and byPcf[pcf].spawnedAt or 0
+    if CurTime() - lastSpawn < cfg.SmokeThrottle then
+        return
+    end
+
+    -- Replacing the SAME smoke type: stop the old one from emitting and let
+    -- its existing particles fade naturally (StopEmission, clear=false) — do
+    -- NOT delete it instantly. Different types coexist.
     local prev = byPcf[pcf]
     if prev then
         if PsysValid(prev.psys) then
@@ -107,6 +117,7 @@ function LVS_GRED_FX_BARRELSMOKE.Spawn(ent, muzzlePos, att, pcf)
         byPcf[pcf] = {
             psys    = psys,
             att     = smokeAtt,
+            spawnedAt = CurTime(),
             expires = CurTime() + cfg.SmokeLife + 0.1,
         }
     end

@@ -129,6 +129,8 @@ C.MuzzleRollFixByClass = {
 C.FlashLife        = 0.35  -- small arms / MG muzzle flash
 C.ArtilleryLife    = 0.6   -- cannon / haubitze muzzle flash
 C.SmokeLife        = 2.5   -- barrel smoke
+C.SmokeThrottle    = 0.35  -- min seconds between new smoke systems of the same
+                           -- type per entity (rapid fire would otherwise stack)
 C.ChargeLife       = 0.35  -- laser charge duration (matches LVS)
 C.ChargeInterval   = 0.04  -- laser charge spark interval
 
