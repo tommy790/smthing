@@ -134,7 +134,16 @@ local function spawnSmallCaliberImpact(pos, n, caliber, isWater)
         pcf = prefix .. (MAT_IMPACT_FALLBACK[mat] or "impact_metal")
     end
 
-    return LVS_GRED_FX.SpawnWorldOneShot(pcf, pos, n:Angle())
+    -- Orient by the PROVIDED impact normal with gred's small-caliber pitch
+    -- convention. Gred's own bullet code adds +90 to the pitch for 7/12mm
+    -- (the ins_/doi_ impact sprites are authored expecting it); without it
+    -- the autocannon AP impact rendered rotated 90 degrees. Larger calibers
+    -- (fallback only) use explosion-style particles that don't need it.
+    local ang = n:Angle()
+    if caliber == "7mm" or caliber == "12mm" then
+        ang.p = ang.p + 90
+    end
+    return LVS_GRED_FX.SpawnWorldOneShot(pcf, pos, ang)
 end
 
 function LVS_GRED_FX.GredImpact(pos, normal, caliber, isWater)
