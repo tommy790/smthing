@@ -263,7 +263,10 @@ local function dispatchOneShot(name, self, data)
 
     if name == "lvs_bullet_impact_explosive" then
         -- HE hit: caliber-specific explosion (visually distinct from AP).
-        local cal = LVS_GRED_FX_TRACER.CaliberFor(ent)
+        -- LVS's splash EffectData carries no shooter entity, so use the global
+        -- last-fired caliber. Autocannons (30mm) -> gred_20mm, cannons (40mm)
+        -- -> gred_40mm.
+        local cal = LVS_GRED_FX_TRACER.CaliberFor(nil)
         local hePcf = cfg.HEImpactByCaliber[cal] or "gred_20mm"
         if LVS_GRED_FX.IsInWater(pos) then
             return LVS_GRED_FX.SpawnWorldOneShot(cfg.WaterExplosionPcf, pos, ang)
