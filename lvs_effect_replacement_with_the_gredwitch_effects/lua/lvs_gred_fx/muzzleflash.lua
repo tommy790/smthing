@@ -54,6 +54,22 @@ local function spawnFlash(pcf, ent, muzzlePos, ang, att, life)
     if not cfg.Enabled() or not isstring(pcf) then return false end
     if not LVS_GRED_FX.Preload(pcf) then return false end
 
+    -- The gred artillery muzzle blasts are ALWAYS spawned at the muzzle world
+    -- position, oriented by the LVS bullet direction. Some LVS models expose
+    -- muzzle attachments that are mis-rotated for these large directional
+    -- effects, which made the blast spray in the wrong direction when
+    -- attached. The world position + bullet direction from LVS are always
+    -- correct. Only these two PCFs are affected; every other muzzle-mounted
+    -- particle stays PATTACH_POINT_FOLLOW.
+    if pcf == "gred_arti_muzzle_blast_alt" or pcf == "gred_arti_muzzle_blast" then
+        if cfg.DebugEnabled() then
+            Debug("muzzle flash world spawn (rotation-safe):", pcf,
+                "pos:", tostring(muzzlePos),
+                "attachment available:", tostring(att))
+        end
+        return LVS_GRED_FX.SpawnWorld(pcf, muzzlePos, ang, life, true) ~= nil
+    end
+
     local roll = LVS_GRED_FX.GetMuzzleRollFix(pcf, ent)
 
     if att and att > 0 and LVS_GRED_FX.ValidAttachment(ent, att) then
