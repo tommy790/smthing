@@ -255,13 +255,22 @@ function LVS_GRED_FX.ResolveMuzzleAttachment(ent, muzzlePos, effectDataAtt)
     end
 
     -- 4) Static-barrel cache: fixed local muzzle positions resolve once.
+    --    The cache stores the resolved id AND the exact local position. A
+    --    cache hit is only accepted when the CURRENT muzzle local position is
+    --    within a few units of the cached one — this prevents two barrels
+    --    whose muzzles share an 8-unit cell (e.g. BMD-4M autocannon + main
+    --    cannon) from cross-returning each other's attachment id.
     if ent.WorldToLocal then
-        local key = localKey(ent:WorldToLocal(muzzlePos))
+        local localPos = ent:WorldToLocal(muzzlePos)
+        local key = localKey(localPos)
         if key then
             local cached = cache.byLocal[key]
-            if cached then
-                if LVS_GRED_FX.ValidAttachment(ent, cached) then
-                    return cached, { method = "local_cache", dist = nil, name = LVS_GRED_FX.AttachmentName(ent, cached) }
+            if cached and cached.id then
+                if LVS_GRED_FX.ValidAttachment(ent, cached.id) and cached.pos and isvector(cached.pos) then
+                    local drift = localPos:DistToSqr(cached.pos)
+                    if drift <= 4 * 4 then -- within 4 units of the cached barrel
+                        return cached.id, { method = "local_cache", dist = nil, name = LVS_GRED_FX.AttachmentName(ent, cached.id) }
+                    end
                 end
                 cache.byLocal[key] = nil
             end
@@ -290,8 +299,11 @@ function LVS_GRED_FX.ResolveMuzzleAttachment(ent, muzzlePos, effectDataAtt)
 
         if best > 0 then
             if ent.WorldToLocal then
-                local key = localKey(ent:WorldToLocal(muzzlePos))
-                if key then cache.byLocal[key] = best end
+                local localPos = ent:WorldToLocal(muzzlePos)
+                local key = localKey(localPos)
+                if key then
+                    cache.byLocal[key] = { id = best, pos = localPos }
+                end
             end
             return best, {
                 method = "nearest",

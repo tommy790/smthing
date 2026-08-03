@@ -200,6 +200,33 @@ end
 local throttles = {}
 local throttleCount = 0
 
+-- Persistent defence-smoke systems: one continuous smoke cloud per canister
+-- position. Keyed by a position cell so multiple canisters coexist; a sweeper
+-- fades systems a few seconds after the canister stops re-firing.
+local DEFENCE_SMOKE = {}
+
+-- Loose psys validity (particle handles are not entities).
+local function PsysValidLoose(psys)
+    if not psys then return false end
+    if psys.IsValid then
+        local ok = pcall(function() return psys:IsValid() end)
+        return ok == true
+    end
+    return true
+end
+
+timer.Create("lvs_gred_fx_defence_smoke_sweep", 1, 0, function()
+    local now = CurTime()
+    for key, sys in pairs(DEFENCE_SMOKE) do
+        if not PsysValidLoose(sys.psys) or (sys.expires or 0) < now then
+            if PsysValidLoose(sys.psys) then
+                pcall(function() sys.psys:StopEmission(false, false) end)
+            end
+            DEFENCE_SMOKE[key] = nil
+        end
+    end
+end)
+
 local function ThrottleAt(pos, keyName, window)
     if not isvector(pos) then return true end
 
@@ -356,11 +383,25 @@ local function dispatchOneShot(name, self, data)
     end
 
     if name == "lvs_defence_smoke" then
-        -- LVS re-fires this every 0.2s while the smoke canister is active;
-        -- throttle by position so smoke puffs never stack into dozens of
-        -- overlapping systems.
-        if ThrottleAt(pos, "defence_smoke", 1.5) then
-            return LVS_GRED_FX.SpawnWorldOneShot(cfg.DefenceSmokePcf, pos, angle_zero)
+        -- LVS re-fires this every 0.2s while the smoke canister is active.
+        -- A canister needs a CONTINUOUS smoke cloud, not throttled one-shot
+        -- puffs (which made it look like nothing). Keep ONE persistent smoke
+        -- system per canister position: start/refresh it on fire, and let it
+        -- fade out a few seconds after the canister stops re-firing.
+        if ThrottleAt(pos, "defence_smoke", 0.2) then
+            local key = "defence_smoke:" .. math.floor(pos.x / 50) .. "," .. math.floor(pos.y / 50) .. "," .. math.floor(pos.z / 50)
+            local sys = DEFENCE_SMOKE[key]
+
+            if sys and PsysValidLoose(sys.psys) then
+                -- canister still active: refresh the fade-out deadline
+                sys.expires = CurTime() + 3
+            else
+                -- start a new continuous smoke system
+                local psys = LVS_GRED_FX.SpawnWorld(cfg.DefenceSmokePcf, pos, angle_zero, 3, false)
+                if psys then
+                    DEFENCE_SMOKE[key] = { psys = psys, expires = CurTime() + 3 }
+                end
+            end
         end
         return true
     end
