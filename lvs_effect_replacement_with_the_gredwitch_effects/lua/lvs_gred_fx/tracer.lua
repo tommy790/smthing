@@ -39,6 +39,13 @@ local RECENT_WINDOW = 0.15
 -- Last shot per entity, no expiry — cheap caliber inference for impacts.
 local LAST_SHOT = setmetatable({}, { __mode = "k" })
 
+-- Last caliber fired by ANY entity. LVS fires lvs_bullet_impact / AP impact
+-- with the HIT surface as the entity (not the shooter), so the per-entity
+-- lookup cannot find the caliber there. This global fallback restores the
+-- old addon's behavior: contextless impacts still get the caliber of the
+-- most recent shot.
+local LAST_CALIBER = "20mm"
+
 local function getList(ent)
     local list = RECENT[ent]
     if not list then
@@ -58,6 +65,10 @@ function LVS_GRED_FX_TRACER.NoteShot(ent, name, srcPos, map)
         srcPos = srcPos,
         map    = map,
     }
+
+    if map and map.caliber then
+        LAST_CALIBER = map.caliber
+    end
 
     local list = getList(ent)
     list[#list + 1] = rec
@@ -108,7 +119,8 @@ function LVS_GRED_FX_TRACER.RecentShot(ent, muzzlePos)
     return best
 end
 
--- Caliber string for impact effects, inferred from the last shot of `ent`.
+-- Caliber string for impact effects, inferred from the last shot of `ent`,
+-- falling back to the most recent shot fired by any entity.
 function LVS_GRED_FX_TRACER.CaliberFor(ent)
     if IsValid(ent) then
         local rec = LAST_SHOT[ent]
@@ -121,7 +133,7 @@ function LVS_GRED_FX_TRACER.CaliberFor(ent)
             return rec.map.caliber
         end
     end
-    return "20mm"
+    return LAST_CALIBER
 end
 
 local function getBullet(id)
@@ -137,6 +149,31 @@ end
       Normal        = bullet.Dir
       MaterialIndex = LVS bullet index
 -----------------------------------------------------------------------------]]
+-- Fire a gred_particle_tracer beam segment from muzzle to a target position.
+-- Returns true when the effect was dispatched.
+local function TracerFire(self, fromPos, toPos)
+    local map = self._map or cfg.TracerDefaults
+    local calIndex = cfg.CaliberIndex[map.caliber or "20mm"] or 3
+    local colIndex = cfg.ColorIndex[map.color or "white"] or 3
+
+    -- The gred_particle_tracer effect resolves gred.Particles internally;
+    -- we only need the gred base to be present at all (like the old addon's
+    -- gred.Calibre check).
+    if not gred then return false end
+
+    local effectdata = EffectData()
+    effectdata:SetOrigin(fromPos)
+    effectdata:SetFlags(calIndex)       -- gred caliber
+    effectdata:SetMaterialIndex(colIndex) -- gred tracer color
+    effectdata:SetStart(toPos)          -- beam endpoint
+
+    local ok = pcall(util.Effect, "gred_particle_tracer", effectdata)
+    return ok == true
+end
+
+-- Reference so Init can call TracerFire before Think exists at runtime.
+local LVS_GRED_FX_TracerFire = TracerFire
+
 function LVS_GRED_FX_TRACER.Init(name, self, data)
     self._gmode = "tracer"
 
@@ -178,41 +215,25 @@ function LVS_GRED_FX_TRACER.Init(name, self, data)
 
     self._srcPos = srcPos
 
-    local pcf = "gred_tracers_" .. (map.color or "white") .. "_" .. (map.caliber or "20mm")
-    self._pcf = pcf
+    self._pcf = "gred_tracers_" .. (map.color or "white") .. "_" .. (map.caliber or "20mm")
+    self._map = map
+    self._dir = dir
+    self._die = CurTime() + cfg.TracerLifeCap
+    self._nextFire = 0
 
-    if not LVS_GRED_FX.Preload(pcf) then
-        -- Gred beam unavailable: the override wrapper falls back to the
+    -- Render via gred's OWN gred_particle_tracer effect (util.Effect), the
+    -- exact mechanism gred's own tanks use — this renders wherever gred's
+    -- tracers render, and is the same effect class we know works in-game.
+    if not LVS_GRED_FX_TracerFire(self, srcPos) then
+        -- Effect not available; the override wrapper falls back to the
         -- original LVS tracer (single tracer either way).
         return false
     end
 
-    -- Same host as gred's own gred_particle_tracer effect (Entity(0)).
-    local ok, psys = pcall(CreateParticleSystem, Entity(0), pcf, PATTACH_WORLDORIGIN, 0, srcPos)
-
-    -- The particle handle is not an entity; validate it directly (see
-    -- particles.lua SpawnWorld for details).
-    if ok and psys ~= nil and (not psys.IsValid or psys:IsValid()) then
-        -- Initial beam: a short stub in the firing direction; Think() extends
-        -- it to the live bullet position every frame.
-        pcall(function() psys:SetControlPoint(1, srcPos + dir * 1200) end)
-        self._psys = psys
-        self._die = CurTime() + cfg.TracerLifeCap
-
-        if cfg.DebugEnabled() then
-            Debug("tracer beam:", pcf, "from", tostring(srcPos), "color:", map.color, "cal:", map.caliber)
-        end
-
-        return true
-    end
-
-    return false
+    return true
 end
 
 function LVS_GRED_FX_TRACER.Think(self)
-    local psys = self._psys
-    if not psys or (psys.IsValid and not psys:IsValid()) then return false end
-
     if CurTime() > (self._die or 0) then
         LVS_GRED_FX_TRACER.Stop(self)
         return false
@@ -220,6 +241,7 @@ function LVS_GRED_FX_TRACER.Think(self)
 
     local bullet = getBullet(self._bulletID)
     local endpos = bullet and bullet.GetPos and bullet:GetPos() or nil
+
     if not isvector(endpos) then
         -- Bullet is gone; the wrapper's silent original Think will fire the
         -- AP impact and tell us to stop. Stop the beam now.
@@ -227,14 +249,20 @@ function LVS_GRED_FX_TRACER.Think(self)
         return false
     end
 
-    pcall(function() psys:SetControlPoint(1, endpos) end)
+    -- Re-fire a beam segment from the muzzle to the live bullet position on
+    -- the update interval. Because the endpoint tracks the LIVE LVS bullet
+    -- (which includes gravity drop when ballistics are on) and moves at the
+    -- projectile's real speed, the tracer follows the ballistic arc and the
+    -- projectile velocity.
+    if CurTime() >= (self._nextFire or 0) then
+        self._nextFire = CurTime() + cfg.TracerUpdateInterval
+        LVS_GRED_FX_TracerFire(self, self._srcPos, endpos)
+    end
+
     return true
 end
 
 function LVS_GRED_FX_TRACER.Stop(self)
-    if not self then return end
-    if self._psys and (not self._psys.IsValid or self._psys:IsValid()) then
-        pcall(function() self._psys:StopEmission(false, true) end)
-    end
-    self._psys = nil
+    -- Each gred_particle_tracer effect owns its own lifetime (it stops
+    -- itself); nothing to clean up here.
 end

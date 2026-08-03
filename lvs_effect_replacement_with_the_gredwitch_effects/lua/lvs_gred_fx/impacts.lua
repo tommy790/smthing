@@ -272,26 +272,40 @@ local function dispatchOneShot(name, self, data)
     end
 
     if name == "lvs_bullet_impact_ap" then
-        -- AP impact: suppress when it overlaps a recent explosive impact
-        -- (LVS fires both at the same spot; we only want one visual).
-        if RecentExplosionNear(pos, cfg.SuppressWindow, cfg.SuppressRadiusSqr, ent) then
-            if cfg.DebugEnabled() then
-                Debug("AP impact suppressed (duplicate of recent explosion) at", tostring(pos))
-            end
-            return true
-        end
+        -- AP impact: LVS autocannons/cannons fire BOTH a splash explosion (on
+        -- collision) and lvs_bullet_impact_ap (on the next tracer Think) at
+        -- the same spot, so we only want ONE visual. The explosion is recorded
+        -- by dispatchOneShot; DEFER the AP particle 0.1s (like the old addon)
+        -- and cancel it only if an explosion actually fired at the same spot
+        -- in that window. This is position+time based and works for every
+        -- weapon. If no explosion fired, spawn the AP particle.
+        local apPos = pos
+        local apNrm = isvector(nrm) and nrm or vector_up
+        local apEnt = ent
 
-        local n = isvector(nrm) and nrm or vector_up
-        local cal = LVS_GRED_FX_TRACER.CaliberFor(ent)
+        local cal = LVS_GRED_FX_TRACER.CaliberFor(apEnt)
         local apPcf = cfg.APImpactPcfByCaliber[cal]
 
-        if apPcf then
-            -- Large-calibre AP (40mm+): dedicated AP spark.
-            return LVS_GRED_FX.SpawnWorldOneShot(apPcf, pos + n * 2, n:Angle())
-        end
+        timer.Simple(0.1, function()
+            if not cfg.Enabled() then return end
 
-        -- Autocannon / small-calibre AP: surface-aware impact.
-        return LVS_GRED_FX.GredImpact(pos, n, cal, LVS_GRED_FX.IsInWater(pos))
+            if RecentExplosionNear(apPos, cfg.SuppressWindow, cfg.SuppressRadiusSqr, apEnt) then
+                if cfg.DebugEnabled() then
+                    Debug("AP impact suppressed (duplicate of recent explosion) at", tostring(apPos))
+                end
+                return
+            end
+
+            if apPcf then
+                -- Large-calibre AP (40mm+): dedicated AP spark (ParticleEffect).
+                LVS_GRED_FX.SpawnWorldOneShot(apPcf, apPos + apNrm * 2, apNrm:Angle())
+            else
+                -- Autocannon / small-calibre AP: surface-aware impact.
+                LVS_GRED_FX.GredImpact(apPos, apNrm, cal, LVS_GRED_FX.IsInWater(apPos))
+            end
+        end)
+
+        return true
     end
 
     if name == "lvs_bullet_impact" then
