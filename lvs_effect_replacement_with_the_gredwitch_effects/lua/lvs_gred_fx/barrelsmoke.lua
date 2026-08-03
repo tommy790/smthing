@@ -17,7 +17,22 @@ local Debug = LVS_GRED_FX.Debug
 
 LVS_GRED_FX_BARRELSMOKE = LVS_GRED_FX_BARRELSMOKE or {}
 
--- Weak-keyed: dead entities are dropped automatically by the GC.
+-- Particle system handles are NOT entities: the global IsValid() returns
+-- false for them. Validate via the :IsValid() method when present.
+local function PsysValid(psys)
+    if not psys then return false end
+    if psys.IsValid then
+        local ok = pcall(function() return psys:IsValid() end)
+        return ok == true
+    end
+    return true
+end
+
+
+-- Weak-keyed on the ENTITY: dead entities are dropped by the GC.
+-- Each entity maps to { [pcf] = { psys, expires } } so DIFFERENT smoke types
+-- (vj narrow + muzzle smoke) coexist per entity; only the SAME type is
+-- replaced (faded out) on re-fire.
 local ACTIVE = setmetatable({}, { __mode = "k" })
 
 -- Periodic sweeper: stop systems whose owner vanished or whose lifetime
@@ -25,12 +40,18 @@ local ACTIVE = setmetatable({}, { __mode = "k" })
 timer.Create("lvs_gred_fx_smoke_sweep", 2, 0, function()
     local now = CurTime()
 
-    for ent, info in pairs(ACTIVE) do
-        if not IsValid(ent) or (info.expires or 0) < now then
-            if info.psys and IsValid(info.psys) then
-                pcall(function() info.psys:StopEmission(false, false) end)
-            end
+    for ent, byPcf in pairs(ACTIVE) do
+        if not IsValid(ent) then
             ACTIVE[ent] = nil
+        else
+            for pcf, info in pairs(byPcf) do
+                if (info.expires or 0) < now then
+                    if PsysValid(info.psys) then
+                        pcall(function() info.psys:StopEmission(false, false) end)
+                    end
+                    byPcf[pcf] = nil
+                end
+            end
         end
     end
 end)
@@ -41,13 +62,20 @@ function LVS_GRED_FX_BARRELSMOKE.Spawn(ent, muzzlePos, att, pcf)
     if not isstring(pcf) or pcf == "" then return end
     if not LVS_GRED_FX.Preload(pcf) then return end
 
-    -- Replace the previous smoke on this entity (if any).
-    local prev = ACTIVE[ent]
+    -- Replacing the SAME smoke type: stop the old one from emitting and let
+    -- its existing particles fade naturally (StopEmission, clear=false) — do
+    -- NOT delete it instantly. Different types coexist.
+    local byPcf = ACTIVE[ent]
+    if not byPcf then
+        byPcf = {}
+        ACTIVE[ent] = byPcf
+    end
+    local prev = byPcf[pcf]
     if prev then
-        if prev.psys and IsValid(prev.psys) then
-            pcall(function() prev.psys:StopEmission(false, true) end)
+        if PsysValid(prev.psys) then
+            pcall(function() prev.psys:StopEmission(false, false) end)
         end
-        ACTIVE[ent] = nil
+        byPcf[pcf] = nil
     end
 
     -- Resolve the muzzle attachment independently of the flash system.
@@ -75,8 +103,8 @@ function LVS_GRED_FX_BARRELSMOKE.Spawn(ent, muzzlePos, att, pcf)
         psys = LVS_GRED_FX.SpawnWorld(pcf, muzzlePos, angle_zero, cfg.SmokeLife, false)
     end
 
-    if psys and IsValid(psys) then
-        ACTIVE[ent] = {
+    if PsysValid(psys) then
+        byPcf[pcf] = {
             psys    = psys,
             att     = smokeAtt,
             expires = CurTime() + cfg.SmokeLife + 0.1,

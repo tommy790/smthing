@@ -188,11 +188,21 @@ function LVS_GRED_FX_MUZZLEFLASH.Spawn(effectName, self, data)
 
     -- Barrel smoke: separate system, resolved with its own attachment lookup,
     -- so a smoke bug can never take the muzzle flash down with it. Uses the
-    -- tracer-paired PCF, or the per-effect default (e.g. haubitze) when no
-    -- tracer record has paired yet.
-    local smokePcf = (map and map.smoke) or cfg.DefaultSmokeByEffect[effectName]
-    if cfg.SmokeEnabled() and smokePcf then
-        LVS_GRED_FX_BARRELSMOKE.Spawn(ent, muzzlePos, att, smokePcf)
+    -- tracer-paired PCF(s), or the per-effect default (e.g. haubitze) when no
+    -- tracer record has paired yet. The smoke field can be a single string or
+    -- a list (cannons spawn BOTH vj_smoke_white_narrow and weapon_muzzle_smoke
+    -- at the same time).
+    local smokeList = (map and map.smoke) or cfg.DefaultSmokeByEffect[effectName]
+    if cfg.SmokeEnabled() and smokeList then
+        if isstring(smokeList) then
+            smokeList = { smokeList }
+        end
+        for i = 1, #smokeList do
+            local pcf = smokeList[i]
+            if pcf and pcf ~= "" then
+                LVS_GRED_FX_BARRELSMOKE.Spawn(ent, muzzlePos, att, pcf)
+            end
+        end
     end
 
     -- The tracer record sometimes arrives a frame after the muzzle effect
@@ -220,9 +230,17 @@ function LVS_GRED_FX_MUZZLEFLASH.Spawn(effectName, self, data)
                 spawnFlash(pcfNow, ent, muzzlePos, ang, att, cfg.FlashLife)
             end
 
-            local smokePcfNow = mapNow.smoke or cfg.DefaultSmokeByEffect[effectName]
-            if cfg.SmokeEnabled() and smokePcfNow then
-                LVS_GRED_FX_BARRELSMOKE.Spawn(ent, muzzlePos, att, smokePcfNow)
+            local smokeListNow = mapNow.smoke or cfg.DefaultSmokeByEffect[effectName]
+            if cfg.SmokeEnabled() and smokeListNow then
+                if isstring(smokeListNow) then
+                    smokeListNow = { smokeListNow }
+                end
+                for i = 1, #smokeListNow do
+                    local pcf = smokeListNow[i]
+                    if pcf and pcf ~= "" then
+                        LVS_GRED_FX_BARRELSMOKE.Spawn(ent, muzzlePos, att, pcf)
+                    end
+                end
             end
         end)
     end

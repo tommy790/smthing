@@ -74,8 +74,8 @@ C.Tracers = {
     -- Autocannon / cannon / rockets
     lvs_tracer_autocannon       = { color = "white",  caliber = "30mm", muzzle = "muzzleflash_bar_3p",        smoke = "weapon_muzzle_smoke" },
     lvs_tracer_missile          = { color = "yellow", caliber = "30mm", muzzle = "muzzleflash_bar_3p" },
-    lvs_tracer_cannon           = { color = "white",  caliber = "40mm", muzzle = "gred_arti_muzzle_blast_alt", smoke = "vj_smoke_white_narrow" },
-    lvs_tracer_proton           = { color = "white",  caliber = "40mm", muzzle = "gred_arti_muzzle_blast_alt", smoke = "vj_smoke_white_narrow" },
+    lvs_tracer_cannon           = { color = "white",  caliber = "40mm", muzzle = "gred_arti_muzzle_blast_alt", smoke = { "vj_smoke_white_narrow", "weapon_muzzle_smoke" } },
+    lvs_tracer_proton           = { color = "white",  caliber = "40mm", muzzle = "gred_arti_muzzle_blast_alt", smoke = { "vj_smoke_white_narrow", "weapon_muzzle_smoke" } },
 
     -- Lasers (gred has no blue beam; blue lasers read best as white tracers)
     lvs_laser_blue              = { color = "white",  caliber = "30mm", muzzle = "muzzleflash_bar_3p" },
