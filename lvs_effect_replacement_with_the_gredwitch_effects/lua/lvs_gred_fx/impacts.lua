@@ -277,13 +277,16 @@ local function dispatchOneShot(name, self, data)
         -- the same spot, so we only want ONE visual. The explosion is recorded
         -- by dispatchOneShot; DEFER the AP particle 0.1s (like the old addon)
         -- and cancel it only if an explosion actually fired at the same spot
-        -- in that window. This is position+time based and works for every
-        -- weapon. If no explosion fired, spawn the AP particle.
+        -- in that window. If no explosion fired, spawn the AP particle.
         local apPos = pos
         local apNrm = isvector(nrm) and nrm or vector_up
         local apEnt = ent
 
-        local cal = LVS_GRED_FX_TRACER.CaliberFor(apEnt)
+        -- Use the GLOBAL last-fired caliber: the AP impact's entity is the
+        -- HIT surface, whose per-entity records (if any) belong to the target,
+        -- not the shooter. The most recent shot anywhere is the shot whose
+        -- tracer Think fired this AP impact.
+        local cal = LVS_GRED_FX_TRACER.CaliberFor(nil)
         local apPcf = cfg.APImpactPcfByCaliber[cal]
 
         timer.Simple(0.1, function()
@@ -300,8 +303,11 @@ local function dispatchOneShot(name, self, data)
                 -- Large-calibre AP (40mm+): dedicated AP spark (ParticleEffect).
                 LVS_GRED_FX.SpawnWorldOneShot(apPcf, apPos + apNrm * 2, apNrm:Angle())
             else
-                -- Autocannon / small-calibre AP: surface-aware impact.
-                LVS_GRED_FX.GredImpact(apPos, apNrm, cal, LVS_GRED_FX.IsInWater(apPos))
+                -- Autocannon / small-calibre AP: use the 12mm surface-aware
+                -- profile so gred_particle_impact plays doi_gunrun_impact —
+                -- visually distinct from the gred_20mm HE explosion, matching
+                -- the old addon.
+                LVS_GRED_FX.GredImpact(apPos, apNrm, cfg.APImpactAutocannonCaliber or "12mm", LVS_GRED_FX.IsInWater(apPos))
             end
         end)
 

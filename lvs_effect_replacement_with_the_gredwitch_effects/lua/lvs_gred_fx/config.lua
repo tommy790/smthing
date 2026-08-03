@@ -130,13 +130,6 @@ C.FlashLife        = 0.35  -- small arms / MG muzzle flash
 C.ArtilleryLife    = 0.6   -- cannon / haubitze muzzle flash
 C.SmokeLife        = 2.5   -- barrel smoke
 C.TracerLifeCap    = 4.0   -- hard lifetime cap for tracer beams
-
--- Tracer rendering: gred's own gred_particle_tracer effect is used (via
--- util.Effect), which renders wherever gred's own tank tracers render. The
--- beam is re-fired every TracerUpdateInterval seconds from the muzzle to the
--- LIVE LVS bullet position, so it follows the projectile's ballistic arc and
--- speed. Re-fire cadence: 0.08s (~12fps) is smooth without spamming effects.
-C.TracerUpdateInterval = 0.08
 C.ChargeLife       = 0.35  -- laser charge duration (matches LVS)
 C.ChargeInterval   = 0.04  -- laser charge spark interval
 
@@ -171,6 +164,11 @@ C.APImpactPcfByCaliber = {
     ["40mm"] = "gred_ap_impact",
     ["50mm"] = "gred_ap_impact",
 }
+
+-- Autocannon / small-calibre AP uses the 12mm surface-aware profile so
+-- gred_particle_impact plays doi_gunrun_impact — visually distinct from the
+-- gred_20mm HE explosion (matches the old addon).
+C.APImpactAutocannonCaliber = "12mm"
 
 -- Duplicate-impact suppression tuning (bounded ring buffer, pos + time aware).
 C.SuppressWindow     = 0.5   -- seconds
