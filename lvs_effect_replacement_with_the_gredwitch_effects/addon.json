@@ -1,6 +1,7 @@
 {
-  "title": "LVS effect replacement with the gredwitch effects",
+  "title": "Gredwitch FX for LVS",
   "type": "effects",
+  "description": "Client-side visual compatibility layer: replaces LVS vehicle effects (muzzle flashes, tracers, impacts, explosions, smoke, fire, trails) with Gredwitch-style particles. Uses PATTACH_POINT_FOLLOW on resolved muzzle attachments; leaves LVS damage, ballistics, physics and networking untouched.",
   "tags": [
     "realism",
     "fun"
