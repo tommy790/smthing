@@ -38,7 +38,12 @@ local Debug = LVS_GRED_FX.Debug
 
 -- Tolerances (units).
 local MAX_EFFECTDATA_DIST = 96   -- EffectData attachment must be near the muzzle
-local MAX_NAMED_DIST      = 128  -- "muzzle"/"barrel" named candidates
+local MAX_NAMED_DIST      = 32   -- "muzzle"/"barrel" named candidates: a real
+                                 -- muzzle is within a few units of bullet.Src;
+                                 -- 128 allowed far/wrong attachments (e.g. a
+                                 -- BMD-4 "muzzle" id 18 units away -> smoke on
+                                 -- the wrong spot). 32 still tolerates turret
+                                 -- pivot offset while rejecting non-muzzles.
 local MAX_GENERIC_DIST    = 48   -- strict radius for unnamed models
 
 -- Local-space quantization for the static-barrel cache.
@@ -200,13 +205,15 @@ function LVS_GRED_FX.ResolveMuzzleAttachment(ent, muzzlePos, effectDataAtt)
     local lvsId = lookupLvsMuzzleId(ent, cache)
     if lvsId > 0 then
         local att = LVS_GRED_FX.GetAttachmentData(ent, lvsId)
-        if att then
+        -- Require a real name AND proximity: an unnamed or far attachment is
+        -- not the actual barrel muzzle (e.g. BMD-4 "muzzle" id 18u away).
+        if att and att.Name and att.Name ~= "" then
             local dist = att.Pos:DistToSqr(muzzlePos)
             if dist <= MAX_NAMED_DIST * MAX_NAMED_DIST then
                 return lvsId, {
                     method = "lvs_muzzle_name",
                     dist = math.sqrt(dist),
-                    name = att.Name or "",
+                    name = att.Name,
                 }
             end
         end
@@ -215,6 +222,8 @@ function LVS_GRED_FX.ResolveMuzzleAttachment(ent, muzzlePos, effectDataAtt)
     -- 3) Named muzzle candidates nearest to the muzzle position. This handles
     --    multi-barrel vehicles (muzzle, hull_muzzle, muzzle_coax, muzzle1/2...)
     --    deterministically: each shot's muzzle position picks its own barrel.
+    --    Only attachments with a real name qualify (an unnamed id is not a
+    --    trustworthy muzzle).
     if cache.named and #cache.named > 0 then
         local best, bestDistSqr = 0, MAX_NAMED_DIST * MAX_NAMED_DIST
         local bestName = nil
@@ -222,12 +231,12 @@ function LVS_GRED_FX.ResolveMuzzleAttachment(ent, muzzlePos, effectDataAtt)
         for i = 1, #cache.named do
             local id = cache.named[i]
             local att = LVS_GRED_FX.GetAttachmentData(ent, id)
-            if att then
+            if att and att.Name and att.Name ~= "" then
                 local d = att.Pos:DistToSqr(muzzlePos)
                 if d < bestDistSqr then
                     bestDistSqr = d
                     best = id
-                    bestName = att.Name or ""
+                    bestName = att.Name
                 end
             end
         end
