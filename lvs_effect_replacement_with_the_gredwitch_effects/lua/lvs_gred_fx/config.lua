@@ -165,11 +165,6 @@ C.APImpactPcfByCaliber = {
     ["50mm"] = "gred_ap_impact",
 }
 
--- Autocannon / small-calibre AP uses the 12mm surface-aware profile so
--- gred_particle_impact plays doi_gunrun_impact — visually distinct from the
--- gred_20mm HE explosion (matches the old addon).
-C.APImpactAutocannonCaliber = "12mm"
-
 -- Duplicate-impact suppression tuning (bounded ring buffer, pos + time aware).
 C.SuppressWindow     = 0.5   -- seconds
 C.SuppressRadiusSqr  = 300 * 300 -- squared units
