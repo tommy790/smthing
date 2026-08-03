@@ -28,15 +28,21 @@ local PWO = PATTACH_WORLDORIGIN
 local PPF = PATTACH_POINT_FOLLOW
 
 -- Returns true when the particle system name exists and has been precached.
+--
+-- PrecacheParticleSystem returns nil on success on the GMod client and an
+-- explicit `false` for a missing system. pcall only tells us the call didn't
+-- error; the RESULT decides existence. Treat "no error + result ~= false" as
+-- success, and negative-cache explicit `false` so missing systems (e.g. vj
+-- smoke without VJ Base) are not retried every shot.
 function LVS_GRED_FX.Preload(name)
     if not isstring(name) or name == "" then return false end
     local cached = PRECACHED[name]
     if cached ~= nil then return cached end
 
-    local ok = pcall(PrecacheParticleSystem, name)
-    PRECACHED[name] = ok == true
+    local ok, res = pcall(PrecacheParticleSystem, name)
+    PRECACHED[name] = ok == true and res ~= false
 
-    if not ok then
+    if not PRECACHED[name] then
         DebugOnce("badpcf:" .. name, "particle system not found:", name)
     end
 

@@ -138,11 +138,11 @@ C.ChargeInterval   = 0.04  -- laser charge spark interval
 -----------------------------------------------------------------------------]]
 C.ExplosionMap = {
     lvs_explosion          = "doi_flak88_explosion",
-    lvs_explosion_bomb     = "1000lb_explosion",
+    lvs_explosion_bomb     = "doi_flak88_explosion",
     lvs_explosion_small    = "ins_rpg_explosion",
     lvs_explosion_nodebris = "ins_rpg_explosion",
     lvs_trailer_explosion  = "gred_40mm",
-    lvs_defence_explosion  = "gred_20mm_airburst",
+    lvs_defence_explosion  = "gred_20mm",
     lvs_concussion_explosion = "napalm_explosion_midair",
     lvs_proton_explosion   = "napalm_explosion_midair",
 }

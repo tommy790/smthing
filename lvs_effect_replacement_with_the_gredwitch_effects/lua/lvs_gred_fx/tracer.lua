@@ -187,7 +187,8 @@ function LVS_GRED_FX_TRACER.Init(name, self, data)
         return false
     end
 
-    local ok, psys = pcall(CreateParticleSystem, game.GetWorld(), pcf, PATTACH_WORLDORIGIN, 0, srcPos)
+    -- Same host as gred's own gred_particle_tracer effect (Entity(0)).
+    local ok, psys = pcall(CreateParticleSystem, Entity(0), pcf, PATTACH_WORLDORIGIN, 0, srcPos)
 
     -- The particle handle is not an entity; validate it directly (see
     -- particles.lua SpawnWorld for details).

@@ -252,13 +252,13 @@ local function dispatchOneShot(name, self, data)
 
     if pcf then
         if LVS_GRED_FX.IsInWater(pos) and (name == "lvs_explosion" or name == "lvs_explosion_bomb" or name == "lvs_explosion_small" or name == "lvs_explosion_nodebris" or name == "lvs_trailer_explosion") then
-            return LVS_GRED_FX.SpawnWorld(cfg.WaterExplosionPcf, pos, ang, 1.5, false) ~= nil
+            return LVS_GRED_FX.SpawnWorldOneShot(cfg.WaterExplosionPcf, pos, ang)
         end
-        return LVS_GRED_FX.SpawnWorld(pcf, pos, ang, 1.5, false) ~= nil
+        return LVS_GRED_FX.SpawnWorldOneShot(pcf, pos, ang)
     end
 
     if name == "lvs_laser_explosion" or name == "lvs_laser_explosion_aat" or name:find("lvs_laser_explosion", 1, true) then
-        return LVS_GRED_FX.SpawnWorld(cfg.LaserExplosionPcf, pos, ang, 1.2, false) ~= nil
+        return LVS_GRED_FX.SpawnWorldOneShot(cfg.LaserExplosionPcf, pos, ang)
     end
 
     if name == "lvs_bullet_impact_explosive" then
@@ -266,9 +266,9 @@ local function dispatchOneShot(name, self, data)
         local cal = LVS_GRED_FX_TRACER.CaliberFor(ent)
         local hePcf = cfg.HEImpactByCaliber[cal] or "gred_20mm"
         if LVS_GRED_FX.IsInWater(pos) then
-            return LVS_GRED_FX.SpawnWorld(cfg.WaterExplosionPcf, pos, ang, 1.5, false) ~= nil
+            return LVS_GRED_FX.SpawnWorldOneShot(cfg.WaterExplosionPcf, pos, ang)
         end
-        return LVS_GRED_FX.SpawnWorld(hePcf, pos, ang, 1.5, false) ~= nil
+        return LVS_GRED_FX.SpawnWorldOneShot(hePcf, pos, ang)
     end
 
     if name == "lvs_bullet_impact_ap" then
@@ -287,7 +287,7 @@ local function dispatchOneShot(name, self, data)
 
         if apPcf then
             -- Large-calibre AP (40mm+): dedicated AP spark.
-            return LVS_GRED_FX.SpawnWorld(apPcf, pos + n * 2, n:Angle(), 1.2, false) ~= nil
+            return LVS_GRED_FX.SpawnWorldOneShot(apPcf, pos + n * 2, n:Angle())
         end
 
         -- Autocannon / small-calibre AP: surface-aware impact.
@@ -301,15 +301,15 @@ local function dispatchOneShot(name, self, data)
     end
 
     if name == "lvs_laser_impact" then
-        return LVS_GRED_FX.SpawnWorld(cfg.LaserImpactPcf, pos, ang, 0.8, true) ~= nil
+        return LVS_GRED_FX.SpawnWorldOneShot(cfg.LaserImpactPcf, pos, ang)
     end
 
     if name == "lvs_shield_impact" then
-        return LVS_GRED_FX.SpawnWorld(cfg.ShieldImpactPcf, pos, ang, 0.8, true) ~= nil
+        return LVS_GRED_FX.SpawnWorldOneShot(cfg.ShieldImpactPcf, pos, ang)
     end
 
     if cfg.WaterByEffect[name] then
-        return LVS_GRED_FX.SpawnWorld(cfg.WaterByEffect[name], pos, ang or angle_zero, 1.0, false) ~= nil
+        return LVS_GRED_FX.SpawnWorldOneShot(cfg.WaterByEffect[name], pos, ang or angle_zero)
     end
 
     if name == "lvs_physics_scrape" or name == "lvs_physics_trackscraping" or name == "lvs_physics_turretscraping" then
@@ -317,7 +317,7 @@ local function dispatchOneShot(name, self, data)
         -- against the ground; throttle by position so spark systems never
         -- stack up during a long scrape. Throttled repeats count as handled.
         if ThrottleAt(pos, "scrape", 0.15) then
-            return LVS_GRED_FX.SpawnWorld(cfg.ScrapePcf, pos, ang or angle_zero, 0.6, true) ~= nil
+            return LVS_GRED_FX.SpawnWorldOneShot(cfg.ScrapePcf, pos, ang or angle_zero)
         end
         return true
     end
@@ -327,23 +327,23 @@ local function dispatchOneShot(name, self, data)
         -- throttle by position so smoke puffs never stack into dozens of
         -- overlapping systems.
         if ThrottleAt(pos, "defence_smoke", 1.5) then
-            return LVS_GRED_FX.SpawnWorld(cfg.DefenceSmokePcf, pos, angle_zero, 2.0, false) ~= nil
+            return LVS_GRED_FX.SpawnWorldOneShot(cfg.DefenceSmokePcf, pos, angle_zero)
         end
         return true
     end
 
     if name == "lvs_walker_stomp" then
-        local a = LVS_GRED_FX.SpawnWorld(cfg.StompDustPcf, pos, angle_zero, 1.2, false) ~= nil
-        local b = LVS_GRED_FX.SpawnWorld("ins_rpg_explosion", pos + Vector(0, 0, 8), angle_zero, 1.0, false) ~= nil
+        local a = LVS_GRED_FX.SpawnWorldOneShot(cfg.StompDustPcf, pos, angle_zero)
+        local b = LVS_GRED_FX.SpawnWorldOneShot("ins_rpg_explosion", pos + Vector(0, 0, 8), angle_zero)
         return a or b
     end
 
     if name == "lvs_rotor_destruction" then
-        return LVS_GRED_FX.SpawnWorld(cfg.RotorExplosionPcf, pos, angle_zero, 1.2, false) ~= nil
+        return LVS_GRED_FX.SpawnWorldOneShot(cfg.RotorExplosionPcf, pos, angle_zero)
     end
 
     if name == "lvs_tire_blow" then
-        return LVS_GRED_FX.SpawnWorld(cfg.StompDustPcf, pos, angle_zero, 1.0, false) ~= nil
+        return LVS_GRED_FX.SpawnWorldOneShot(cfg.StompDustPcf, pos, angle_zero)
     end
 
     if name:find("muzzle", 1, true) then
