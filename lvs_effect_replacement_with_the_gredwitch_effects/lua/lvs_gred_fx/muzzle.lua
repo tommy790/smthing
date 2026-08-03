@@ -184,6 +184,13 @@ function LVS_GRED_FX.ResolveMuzzleAttachment(ent, muzzlePos, effectDataAtt)
     if not IsValid(ent) then return 0, { method = "none", reason = "invalid entity" } end
     if not isvector(muzzlePos) then return 0, { method = "none", reason = "invalid muzzle position" } end
 
+    -- Debug: draw a blue box showing the named-nearest attachment search
+    -- area (MAX_NAMED_DIST radius around the muzzle position), so it is easy
+    -- to see where the resolver is looking for the barrel attachment.
+    if cfg.DebugEnabled() and debugoverlay and debugoverlay.Box then
+        debugoverlay.Box(muzzlePos, Vector(MAX_NAMED_DIST, MAX_NAMED_DIST, MAX_NAMED_DIST), 0.5, Color(0, 100, 255, 60))
+    end
+
     local cache = GetCache(ent)
 
     -- 1) EffectData attachment id. LVS sometimes provides a muzzle attachment
