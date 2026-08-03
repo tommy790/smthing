@@ -1,12 +1,16 @@
 --[[---------------------------------------------------------------------------
     LVS → Gredwitch FX : shared init.
 
-    This addon is a pure client-side visual compatibility layer. There is no
-    server code: LVS damage, ballistics, projectile physics, weapon logic,
-    vehicle physics, networking and firing mechanics all run untouched.
+    Visual replacement logic is client-side. The single server-side module is
+    a purely visual tracer relay: after every mapped LVS shot it sends gred's
+    own gred_net_createtracer message so the Gredwitch base renders the tracer
+    beam on clients (the proven mechanism from the original addon). LVS
+    damage, ballistics, projectile physics, weapon logic, vehicle physics,
+    networking and firing mechanics all run untouched.
 
-    All modules are shipped to clients via AddCSLuaFile and included by
-    autorun/client/cl_lvs_gred_fx_override.lua in dependency order.
+    Client modules are shipped via AddCSLuaFile and included by
+    autorun/client/cl_lvs_gred_fx_override.lua in dependency order. The server
+    module is included only on the server.
 -----------------------------------------------------------------------------]]
 
 local CLIENT_FILES = {
@@ -26,4 +30,8 @@ local CLIENT_FILES = {
 
 for _, file in ipairs(CLIENT_FILES) do
     AddCSLuaFile(file)
+end
+
+if SERVER then
+    include("lvs_gred_fx/sv_tracer.lua")
 end

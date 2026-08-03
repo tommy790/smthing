@@ -1,28 +1,26 @@
 --[[---------------------------------------------------------------------------
     LVS → Gredwitch FX : tracer system (client-side)
 
-    Replaces the LVS tracer visuals with the actual GREDWITCH TRACER PARTICLES
-    (gred_tracers_<color>_<caliber>) while leaving LVS projectile behaviour
-    completely untouched.
+    THE PROVEN TRACER MECHANISM (restored from the original addon):
 
-    Rendering: spawns the real gred tracer particle system on the world
-    (Entity(0), PATTACH_WORLDORIGIN) — the exact mechanism gred's own
-    gred_particle_tracer effect uses — with:
-      * control point 0 = the muzzle (world position),
-      * control point 1 = the LIVE LVS bullet position, re-set every frame in
-        Think(). Because the LVS bullet is simulated with gravity when
-        ballistics are enabled, the tracer follows the real ballistic arc and
-        the projectile's real speed.
-    The handle is validated directly (not via the entity-only global IsValid),
-    so the particle system is accepted and renders.
+    The actual gred tracer beam is rendered by GREDWITCH'S OWN BASE from the
+    server's gred_net_createtracer message (see lvs_gred_fx/sv_tracer.lua).
+    This module does NOT create any tracer particle system itself — it only:
 
-      * when the bullet dies the beam stops — the override wrapper's silent
-        original Think still fires lvs_bullet_impact_ap at LVS's exact timing,
-      * the original LVS tracer visual is suppressed (the wrapper owns the
-        registration), so there is never a duplicate LVS + Gred tracer,
-      * each shot is recorded (entity, muzzle position, tracer name, mapping)
-        so the muzzle-flash system can pair the correct PCF and the impact
+      * SUPPRESSES the original LVS tracer visual (the wrapper owns the effect
+        registration, so the original LVS beam never renders — no duplicate
+        LVS + Gred tracer),
+      * keeps the LVS wrapper instance alive while the LVS bullet exists, so
+        the override wrapper's silent original Think keeps firing
+        lvs_bullet_impact_ap at LVS's exact timing and decides when the
+        tracer is over,
+      * records each shot (entity, muzzle position, tracer name, mapping) so
+        the muzzle-flash system can pair the correct PCF and the impact
         system can pick the correct caliber.
+
+    This is the exact architecture that worked in the original addon:
+    rendering delegated to gred's own battle-tested pipeline, nothing fragile
+    to reimplement on the client.
 -----------------------------------------------------------------------------]]
 
 if not CLIENT then return end
@@ -144,15 +142,15 @@ local function getBullet(id)
     return nil
 end
 
--- Hard lifetime cap: LVS already removes bullets older than 5s; this only
--- guards against an edge case where the bullet record leaks.
-local BEAM_MAX_LIFE = 5
-
 --[[---------------------------------------------------------------------------
     Tracer effect lifecycle. `data` is the LVS tracer EffectData:
       Origin        = bullet.Src (world muzzle position)
       Normal        = bullet.Dir
       MaterialIndex = LVS bullet index
+
+    The visual beam is rendered by the gred base from the server's
+    gred_net_createtracer message; this handler only suppresses the LVS
+    tracer visual and keeps the instance alive for LVS's own timing.
 -----------------------------------------------------------------------------]]
 function LVS_GRED_FX_TRACER.Init(name, self, data)
     self._gmode = "tracer"
@@ -166,13 +164,8 @@ function LVS_GRED_FX_TRACER.Init(name, self, data)
     local bullet = getBullet(bulletID)
 
     local srcPos = isvector(data:GetOrigin()) and data:GetOrigin() or nil
-    local dir    = isvector(data:GetNormal()) and data:GetNormal() or nil
-
     if not srcPos and bullet then
         srcPos = bullet.Src
-    end
-    if not dir and bullet then
-        dir = bullet.Dir
     end
 
     local ent = bullet and bullet.Entity
@@ -187,87 +180,25 @@ function LVS_GRED_FX_TRACER.Init(name, self, data)
         LVS_GRED_FX_TRACER.NoteShot(ent, name, srcPos, map)
     end
 
-    if not isvector(srcPos) or not isvector(dir) then
-        -- No usable geometry — declare handled (original tracer suppressed);
-        -- the wrapper's silent original Think still drives lifetime/AP impact.
-        return true
-    end
-
-    self._srcPos = srcPos
-
-    -- The actual gred tracer particle.
-    local pcf = "gred_tracers_" .. (map.color or "white") .. "_" .. (map.caliber or "20mm")
-
-    if not LVS_GRED_FX.Preload(pcf) then
-        -- Gred beam unavailable: the override wrapper falls back to the
-        -- original LVS tracer (single tracer either way).
-        return false
-    end
-
-    -- Spawn the real gred tracer particle on the world, exactly like gred's
-    -- own gred_particle_tracer effect does (Entity(0), PATTACH_WORLDORIGIN).
-    -- Validate the handle directly: particle system handles are NOT entities,
-    -- so the global IsValid() (which checks IsEntity) returns false for them.
-    local ok, psys = pcall(CreateParticleSystem, Entity(0), pcf, PATTACH_WORLDORIGIN, 0, srcPos)
-
-    if not ok or psys == nil then
-        return false
-    end
-    if psys.IsValid and not psys:IsValid() then
-        return false
-    end
-
-    -- Control point 0 = muzzle; control point 1 = live bullet position.
-    local bulletPos = bullet and bullet.GetPos and bullet:GetPos() or (srcPos + dir * 1200)
-    if not isvector(bulletPos) then bulletPos = srcPos + dir * 1200 end
-
-    pcall(function()
-        psys:SetControlPoint(0, srcPos)
-        psys:SetControlPoint(1, bulletPos)
-    end)
-
-    self._psys = psys
-    self._die = CurTime() + BEAM_MAX_LIFE
-
-    if cfg.DebugEnabled() then
-        Debug("tracer beam:", pcf, "following LVS bullet", bulletID,
-            "from", tostring(srcPos), "tip", tostring(bulletPos))
-    end
-
+    -- Suppress the LVS tracer visual. The gred beam arrives via the server's
+    -- gred_net_createtracer message; the wrapper's silent original Think
+    -- still drives the lifetime and fires lvs_bullet_impact_ap when the
+    -- bullet is gone.
     return true
 end
 
 function LVS_GRED_FX_TRACER.Think(self)
-    local psys = self._psys
-    if not psys or (psys.IsValid and not psys:IsValid()) then return false end
-
-    if CurTime() > (self._die or 0) then
+    -- Keep the effect instance alive while the LVS bullet exists so the
+    -- wrapper's silent original Think can fire lvs_bullet_impact_ap and
+    -- decide the exact end of the tracer. Once the bullet is gone, LVS says
+    -- the tracer is over too.
+    if not getBullet(self._bulletID) then
         LVS_GRED_FX_TRACER.Stop(self)
         return false
     end
-
-    local bullet = getBullet(self._bulletID)
-    local pos = bullet and bullet.GetPos and bullet:GetPos() or nil
-
-    if not isvector(pos) then
-        -- Bullet is gone; the wrapper's silent original Think will fire the
-        -- AP impact and tell us to stop. Stop the beam now.
-        LVS_GRED_FX_TRACER.Stop(self)
-        return false
-    end
-
-    -- Follow the live LVS projectile: its position already includes the
-    -- ballistic gravity arc (EnableBallistics) and travels at LVS velocity,
-    -- so the beam tip tracks the real projectile speed and drop each frame.
-    pcall(function() psys:SetControlPoint(1, pos) end)
-
     return true
 end
 
 function LVS_GRED_FX_TRACER.Stop(self)
-    if not self then return end
-    if self._psys and (not self._psys.IsValid or self._psys:IsValid()) then
-        pcall(function() self._psys:StopEmission(false, true) end)
-    end
-    self._psys = nil
+    -- No client-owned particle system; nothing to stop.
 end

@@ -129,7 +129,6 @@ C.MuzzleRollFixByClass = {
 C.FlashLife        = 0.35  -- small arms / MG muzzle flash
 C.ArtilleryLife    = 0.6   -- cannon / haubitze muzzle flash
 C.SmokeLife        = 2.5   -- barrel smoke
-C.TracerLifeCap    = 4.0   -- hard lifetime cap for tracer beams
 C.ChargeLife       = 0.35  -- laser charge duration (matches LVS)
 C.ChargeInterval   = 0.04  -- laser charge spark interval
 
