@@ -165,10 +165,6 @@ C.APImpactPcfByCaliber = {
     ["50mm"] = "gred_ap_impact",
 }
 
--- Small arms / autocannon AP uses the surface-aware gred impact effect.
--- 12mm maps to doi_gunrun_impact which is visually distinct from the 20mm HE.
-C.APImpactSmallCaliber = "12mm"
-
 -- Duplicate-impact suppression tuning (bounded ring buffer, pos + time aware).
 C.SuppressWindow     = 0.5   -- seconds
 C.SuppressRadiusSqr  = 300 * 300 -- squared units

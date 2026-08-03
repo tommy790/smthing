@@ -90,25 +90,52 @@ function LVS_GRED_FX_IMPACTS.RecentExplosionNear(pos, window, radiusSqr, ent)
 end
 
 --[[---------------------------------------------------------------------------
-    GredImpact — surface-aware impact via gred_particle_impact.
+    GredImpact — surface-aware impact.
 
-    Uses Gredwitch's own impact effect so rotation, surface material, decals
-    and blood are handled correctly. Falls back to a simple surface particle
-    when the Gredwitch base is not loaded.
+    * 20/30/40mm → gred's own gred_particle_impact effect (surface prop 0 =
+      ground hit), which plays gred_20mm / 30cal_impact / gred_40mm with
+      decals and blood. Surface 0 is deliberate: it is the ground-hit branch,
+      exactly like the original addon.
+    * 7/12mm → gred's impact effect cannot resolve a surface index for these,
+      so spawn the surface particle directly (doi_/ins_impact_<material> or
+      the water impact) — always visible.
+    * If the gred base is missing or the gred effect call errors, fall back to
+      a directly spawned surface particle so impacts are never lost.
 -----------------------------------------------------------------------------]]
 local MAT_IMPACT_FALLBACK = {
-    [MAT_CONCRETE] = "doi_impact_concrete",
-    [MAT_METAL]    = "doi_impact_metal",
-    [MAT_WOOD]     = "doi_impact_wood",
-    [MAT_GLASS]    = "doi_impact_glass",
-    [MAT_SAND]     = "doi_impact_sand",
-    [MAT_DIRT]     = "doi_impact_dirt",
-    [MAT_GRASS]    = "doi_impact_grass",
-    [MAT_SNOW]     = "doi_impact_snow",
-    [MAT_FLESH]    = "doi_impact_metal",
-    [MAT_ALIENFLESH] = "doi_impact_metal",
-    [MAT_BLOODYFLESH] = "doi_impact_metal",
+    [MAT_CONCRETE] = "impact_concrete",
+    [MAT_METAL]    = "impact_metal",
+    [MAT_WOOD]     = "impact_wood",
+    [MAT_GLASS]    = "impact_glass",
+    [MAT_SAND]     = "impact_sand",
+    [MAT_DIRT]     = "impact_dirt",
+    [MAT_GRASS]    = "impact_grass",
+    [MAT_SNOW]     = "impact_snow",
+    [MAT_FLESH]    = "impact_metal",
+    [MAT_ALIENFLESH] = "impact_metal",
+    [MAT_BLOODYFLESH] = "impact_metal",
 }
+
+-- Spawn a directly-visible surface impact particle for small calibers.
+local function spawnSmallCaliberImpact(pos, n, caliber, isWater)
+    local pcf
+    if isWater then
+        pcf = "doi_impact_water"
+    else
+        local tr = util.TraceLine({
+            start = pos + n * 1,
+            endpos = pos - n * 12,
+            mask = MASK_SHOT,
+        })
+        local mat = tr.MatType or MAT_METAL
+        -- 7mm uses the doi_ surface set, 12mm uses the ins_ surface set
+        -- (mirrors gred's own impact effect prefixes).
+        local prefix = (caliber == "12mm") and "ins_" or "doi_"
+        pcf = prefix .. (MAT_IMPACT_FALLBACK[mat] or "impact_metal")
+    end
+
+    return LVS_GRED_FX.SpawnWorldOneShot(pcf, pos, n:Angle())
+end
 
 function LVS_GRED_FX.GredImpact(pos, normal, caliber, isWater)
     if not cfg.Enabled() then return false end
@@ -118,51 +145,27 @@ function LVS_GRED_FX.GredImpact(pos, normal, caliber, isWater)
     local cal = isstring(caliber) and caliber or "20mm"
     local calIndex = cfg.CaliberIndex[cal] or 3
 
-    -- Gredwitch base present: use its own impact effect.
+    -- Small calibers: direct surface particle (guaranteed visible).
+    if calIndex <= 2 then
+        return spawnSmallCaliberImpact(pos, n, cal, isWater)
+    end
+
+    -- 20/30/40mm: gred's own surface-aware impact effect (ground branch).
     if gred and gred.Calibre and gred.Calibre[calIndex] then
         local e = EffectData()
         e:SetOrigin(pos)
         e:SetAngles(n:Angle())
         e:SetFlags(calIndex)
         e:SetMaterialIndex(isWater and 0 or 1) -- 1 = ground, 0 = water
-        e:SetSurfaceProp(LVS_GRED_FX.SurfacePropIndex(pos, n))
+        e:SetSurfaceProp(0)
 
         local ok = pcall(util.Effect, "gred_particle_impact", e)
-        return ok
+        if ok then return true end
     end
 
-    -- Gredwitch base missing: minimal surface-based fallback particle.
-    local tr = util.TraceLine({
-        start = pos + n * 1,
-        endpos = pos - n * 12,
-        mask = MASK_SHOT,
-    })
-
-    local mat = tr.MatType or MAT_METAL
-    local pcf = (not isWater) and (MAT_IMPACT_FALLBACK[mat] or "doi_impact_metal") or "doi_impact_water"
-
-    return LVS_GRED_FX.SpawnWorldOneShot(pcf, pos, n:Angle())
-end
-
--- Compute the gred.Mats surface index at a world position for gred_particle_impact.
-function LVS_GRED_FX.SurfacePropIndex(pos, n)
-    if not gred or not gred.Mats then return 0 end
-
-    local tr = util.TraceLine({
-        start = pos + n * 1,
-        endpos = pos - n * 12,
-        mask = MASK_SHOT,
-    })
-
-    if tr.Hit then
-        local name = tr.SurfaceProps and util.GetSurfacePropName(tr.SurfaceProps) or nil
-        if isstring(name) then
-            local idx = gred.Mats[name]
-            if idx and idx > 0 then return idx end
-        end
-    end
-
-    return 0
+    -- Fallback: directly spawned surface particle so the impact never
+    -- disappears silently.
+    return spawnSmallCaliberImpact(pos, n, cal, isWater)
 end
 
 --[[---------------------------------------------------------------------------
@@ -222,6 +225,11 @@ end
 
 --[[---------------------------------------------------------------------------
     One-shot dispatch table (world-space effects).
+
+    Every branch returns whether a replacement particle actually spawned.
+    Returning false makes the override wrapper fall back to the original LVS
+    effect, so a failed replacement (missing particle system, create error)
+    can never leave an impact silently missing.
 -----------------------------------------------------------------------------]]
 local function dispatchOneShot(name, self, data)
     local pos = data.GetOrigin and data:GetOrigin() or nil
@@ -244,16 +252,13 @@ local function dispatchOneShot(name, self, data)
 
     if pcf then
         if LVS_GRED_FX.IsInWater(pos) and (name == "lvs_explosion" or name == "lvs_explosion_bomb" or name == "lvs_explosion_small" or name == "lvs_explosion_nodebris" or name == "lvs_trailer_explosion") then
-            LVS_GRED_FX.SpawnWorld(cfg.WaterExplosionPcf, pos, ang, 1.5, false)
-        else
-            LVS_GRED_FX.SpawnWorld(pcf, pos, ang, 1.5, false)
+            return LVS_GRED_FX.SpawnWorld(cfg.WaterExplosionPcf, pos, ang, 1.5, false) ~= nil
         end
-        return true
+        return LVS_GRED_FX.SpawnWorld(pcf, pos, ang, 1.5, false) ~= nil
     end
 
     if name == "lvs_laser_explosion" or name == "lvs_laser_explosion_aat" or name:find("lvs_laser_explosion", 1, true) then
-        LVS_GRED_FX.SpawnWorld(cfg.LaserExplosionPcf, pos, ang, 1.2, false)
-        return true
+        return LVS_GRED_FX.SpawnWorld(cfg.LaserExplosionPcf, pos, ang, 1.2, false) ~= nil
     end
 
     if name == "lvs_bullet_impact_explosive" then
@@ -261,11 +266,9 @@ local function dispatchOneShot(name, self, data)
         local cal = LVS_GRED_FX_TRACER.CaliberFor(ent)
         local hePcf = cfg.HEImpactByCaliber[cal] or "gred_20mm"
         if LVS_GRED_FX.IsInWater(pos) then
-            LVS_GRED_FX.SpawnWorld(cfg.WaterExplosionPcf, pos, ang, 1.5, false)
-        else
-            LVS_GRED_FX.SpawnWorld(hePcf, pos, ang, 1.5, false)
+            return LVS_GRED_FX.SpawnWorld(cfg.WaterExplosionPcf, pos, ang, 1.5, false) ~= nil
         end
-        return true
+        return LVS_GRED_FX.SpawnWorld(hePcf, pos, ang, 1.5, false) ~= nil
     end
 
     if name == "lvs_bullet_impact_ap" then
@@ -283,43 +286,38 @@ local function dispatchOneShot(name, self, data)
         local apPcf = cfg.APImpactPcfByCaliber[cal]
 
         if apPcf then
-            LVS_GRED_FX.SpawnWorld(apPcf, pos + n * 2, n:Angle(), 1.2, false)
-        else
-            -- Autocannon / small-calibre AP: surface-aware impact with the
-            -- 12mm profile (doi_gunrun_impact) — visually distinct from HE.
-            LVS_GRED_FX.GredImpact(pos, n, cfg.APImpactSmallCaliber)
+            -- Large-calibre AP (40mm+): dedicated AP spark.
+            return LVS_GRED_FX.SpawnWorld(apPcf, pos + n * 2, n:Angle(), 1.2, false) ~= nil
         end
-        return true
+
+        -- Autocannon / small-calibre AP: surface-aware impact.
+        return LVS_GRED_FX.GredImpact(pos, n, cal, LVS_GRED_FX.IsInWater(pos))
     end
 
     if name == "lvs_bullet_impact" then
         -- Generic bullet / splash impact: surface-aware.
         local cal = LVS_GRED_FX_TRACER.CaliberFor(ent)
-        LVS_GRED_FX.GredImpact(pos, nrm, cal, LVS_GRED_FX.IsInWater(pos))
-        return true
+        return LVS_GRED_FX.GredImpact(pos, nrm, cal, LVS_GRED_FX.IsInWater(pos))
     end
 
     if name == "lvs_laser_impact" then
-        LVS_GRED_FX.SpawnWorld(cfg.LaserImpactPcf, pos, ang, 0.8, true)
-        return true
+        return LVS_GRED_FX.SpawnWorld(cfg.LaserImpactPcf, pos, ang, 0.8, true) ~= nil
     end
 
     if name == "lvs_shield_impact" then
-        LVS_GRED_FX.SpawnWorld(cfg.ShieldImpactPcf, pos, ang, 0.8, true)
-        return true
+        return LVS_GRED_FX.SpawnWorld(cfg.ShieldImpactPcf, pos, ang, 0.8, true) ~= nil
     end
 
     if cfg.WaterByEffect[name] then
-        LVS_GRED_FX.SpawnWorld(cfg.WaterByEffect[name], pos, ang or angle_zero, 1.0, false)
-        return true
+        return LVS_GRED_FX.SpawnWorld(cfg.WaterByEffect[name], pos, ang or angle_zero, 1.0, false) ~= nil
     end
 
     if name == "lvs_physics_scrape" or name == "lvs_physics_trackscraping" or name == "lvs_physics_turretscraping" then
         -- Scrape effects can fire every physics tick while a vehicle grinds
         -- against the ground; throttle by position so spark systems never
-        -- stack up during a long scrape.
+        -- stack up during a long scrape. Throttled repeats count as handled.
         if ThrottleAt(pos, "scrape", 0.15) then
-            LVS_GRED_FX.SpawnWorld(cfg.ScrapePcf, pos, ang or angle_zero, 0.6, true)
+            return LVS_GRED_FX.SpawnWorld(cfg.ScrapePcf, pos, ang or angle_zero, 0.6, true) ~= nil
         end
         return true
     end
@@ -329,25 +327,23 @@ local function dispatchOneShot(name, self, data)
         -- throttle by position so smoke puffs never stack into dozens of
         -- overlapping systems.
         if ThrottleAt(pos, "defence_smoke", 1.5) then
-            LVS_GRED_FX.SpawnWorld(cfg.DefenceSmokePcf, pos, angle_zero, 2.0, false)
+            return LVS_GRED_FX.SpawnWorld(cfg.DefenceSmokePcf, pos, angle_zero, 2.0, false) ~= nil
         end
         return true
     end
 
     if name == "lvs_walker_stomp" then
-        LVS_GRED_FX.SpawnWorld(cfg.StompDustPcf, pos, angle_zero, 1.2, false)
-        LVS_GRED_FX.SpawnWorld("ins_rpg_explosion", pos + Vector(0, 0, 8), angle_zero, 1.0, false)
-        return true
+        local a = LVS_GRED_FX.SpawnWorld(cfg.StompDustPcf, pos, angle_zero, 1.2, false) ~= nil
+        local b = LVS_GRED_FX.SpawnWorld("ins_rpg_explosion", pos + Vector(0, 0, 8), angle_zero, 1.0, false) ~= nil
+        return a or b
     end
 
     if name == "lvs_rotor_destruction" then
-        LVS_GRED_FX.SpawnWorld(cfg.RotorExplosionPcf, pos, angle_zero, 1.2, false)
-        return true
+        return LVS_GRED_FX.SpawnWorld(cfg.RotorExplosionPcf, pos, angle_zero, 1.2, false) ~= nil
     end
 
     if name == "lvs_tire_blow" then
-        LVS_GRED_FX.SpawnWorld(cfg.StompDustPcf, pos, angle_zero, 1.0, false)
-        return true
+        return LVS_GRED_FX.SpawnWorld(cfg.StompDustPcf, pos, angle_zero, 1.0, false) ~= nil
     end
 
     if name:find("muzzle", 1, true) then
